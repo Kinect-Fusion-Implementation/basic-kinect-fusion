@@ -11,7 +11,7 @@ private:
 public:
 
     /**
-     * represents the vertex and point map
+     * represents the vertex and point map, relatively to the camera (in the camera frame)
      */
     PointCloud(float *depthMap, const Matrix3f &depthIntrinsics, const Matrix4f &depthExtrinsics, const unsigned int width, const unsigned int height, const unsigned int maxDistance)
     {
