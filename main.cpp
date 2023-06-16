@@ -9,5 +9,10 @@
 int main() {
 	int result = 0;
 
+	VirtualSensor sensor;
+	sensor.init("../../../Data/rgbd_dataset_freiburg1_xyz/");
+
+
+
 	return result;
 }
