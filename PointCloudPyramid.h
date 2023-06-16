@@ -22,7 +22,7 @@ public:
 		delete[] smoothedDepthMap;
 	}
 
-	PointCloudPyramid(float* depthMap, const Matrix3f& depthIntrinsics, const Matrix4f& depthExtrinsics, const unsigned int width, const unsigned int height, const unsigned int levels = 3, const float sigmaS, const float sigmaR)
+	PointCloudPyramid(float* depthMap, const Matrix3f& depthIntrinsics, const Matrix4f& depthExtrinsics, const unsigned int width, const unsigned int height, const unsigned int levels, const float sigmaS, const float sigmaR)
 	{
 		// Ensure that this is definitely uneven!
 		const unsigned windowSize = 7;
@@ -30,6 +30,8 @@ public:
 		const unsigned blockSize = 7;
 		assert(windowSize % 2 == 1);
 		assert(blockSize % 2 == 1);
+
+		rawDepthMap = depthMap;
 		computeSmoothedDepthMap(width, height, windowSize, sigmaR, sigmaS);
 		float* currentDepthMap = smoothedDepthMap;
 		pointClouds.reserve(levels);
@@ -49,8 +51,11 @@ private:
 	/**
 	 * Computes the smoothed depthmap for every pixel based on a windowSize
 	 */
-	void computeSmoothedDepthMap(const unsigned width, const unsigned height, const unsigned windowSize, const float sigmaR, const float sigmaS)
+	void computeSmoothedDepthMap(const int width, const int height, const int windowSize, const float sigmaR, const float sigmaS)
 	{
+		assert(width > 0);
+		assert(height > 0);
+		assert(windowSize > 0);
 		assert(windowSize % 2 == 1);
 		// Create row major representation of depth map
 		smoothedDepthMap = new float[width * height];
@@ -63,12 +68,12 @@ private:
 				float normalizer = 0.0;
 				float sum = 0.0;
 
-				const int lowerLimitHeight = std::max(v - (windowSize / 2), (unsigned int)0);
+				const int lowerLimitHeight = std::max(v - (windowSize / 2), 0);
 				const int upperLimitHeight = std::min(v + (windowSize / 2) + 1, height);
 				// Compute bilinear filter over the windowSize
 				for (int y = lowerLimitHeight; y < upperLimitHeight; ++y)
 				{
-					const int lowerLimitWidth = std::max(u - (windowSize / 2), (unsigned int)0);
+					const int lowerLimitWidth = std::max(u - (windowSize / 2), 0);
 					const int upperLimitWidth = std::min(u + (windowSize / 2) + 1, width);
 					for (int x = lowerLimitWidth; x < upperLimitWidth; ++x)
 					{
@@ -111,6 +116,9 @@ private:
 				blockAverage[(v / 2) * width + (u / 2)] = sum / blockEntries;
 			}
 		}
+		FreeImage image(width, height, 1);
+		image.data = depthMap;
+		image.SaveImageToFile("../../DepthMap.png");
 		// TODO: Ensure to delete depthMap after computation, except if it is the original smoothed one
 		if (depthMap != smoothedDepthMap) {
 			delete[] depthMap;
