@@ -91,9 +91,12 @@ private:
 private:
 	float* subsampleDepthMap(float* depthMap, const unsigned width, const unsigned height, const unsigned blockSize, const float sigmaR)
 	{
+		malloc(480*640*24*20);
 		float threshold = 3 * sigmaR;
 		float* blockAverage = new float[(width / 2) * (height / 2)];
-#pragma omp parallel for
+		malloc(480*640*24*20);
+		malloc(480*640*24*20);
+//#pragma omp parallel for
 		for (int v = 0; v < height; v = v + 2)
 		{
 			for (int u = 0; u < width; u = u + 2)
@@ -113,7 +116,7 @@ private:
 						sum += rawDepthMap[idxBlock] * (1 - invalid);
 					}
 				}
-				blockAverage[(v / 2) * width + (u / 2)] = sum / blockEntries;
+				blockAverage[(v / 2) * (width/2) + (u / 2)] = sum / blockEntries;
 			}
 		}
 		FreeImage image(width, height, 1);
