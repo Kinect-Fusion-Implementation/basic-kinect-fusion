@@ -10,7 +10,7 @@ FreeImage::FreeImage() : w(0), h(0), nChannels(0), data(nullptr)
 }
 
 FreeImage::FreeImage(unsigned int width, unsigned int height, unsigned int nChannels) :
-	w(width), h(height), nChannels(nChannels), data(new float[nChannels * width*height])
+	w(width), h(height), nChannels(nChannels), data(nullptr)
 {
 }
 
