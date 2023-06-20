@@ -36,9 +36,16 @@ Expected Output:
 
 ### Cuda Programming
 
-Parallelize all methods
+1. Surface measurement
+2. Pyramid computation
+3. 
 
 ## Debug
 
 - Debug smoothing of depth map
 - Debug subsampling of depth map
+
+## Documentation
+
+- Document ImageHelper
+- Document PointCloudPyramid
