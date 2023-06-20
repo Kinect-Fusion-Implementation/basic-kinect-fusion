@@ -1,6 +1,7 @@
 #include "FreeImageHelper.h"
 
 #include <iostream>
+#include <cassert>
 #include <cstring>
 
 //#pragma comment(lib, "FreeImage.lib")
@@ -27,7 +28,6 @@ FreeImage::FreeImage(const std::string& filename) : w(0), h(0), nChannels(0), da
 
 FreeImage::~FreeImage()
 {
-	if (data != nullptr) delete[] data;
 }
 
 void FreeImage::operator=(const FreeImage& other)
@@ -151,7 +151,6 @@ bool FreeImage::SaveImageToFile(const std::string& filename, bool flipY)
 
 			for (unsigned int c = 0; c < nChannels && c < 3; ++c)
 			{
-				//col[c] = std::min(std::max(0, (int)(255.0f*data[nChannels * (w*j + i) + c])), 255);
 				col[c] = std::min(std::max(0, (int)(255.0f*data[nChannels * (w*j + i) + c])), 255);
 			}
 
@@ -167,6 +166,31 @@ bool FreeImage::SaveImageToFile(const std::string& filename, bool flipY)
 	return r;
 }
 
+bool FreeImage::SaveDepthMapToFile(const std::string& filename, bool flipY)
+{
+	assert(this->nChannels == 1);
+	FREE_IMAGE_FORMAT fif = FIF_PNG;
+	FIBITMAP *dib = FreeImage_Allocate(w, h, 24);
+	RGBQUAD color;
+
+	for (unsigned int j = 0; j < h; j++) {
+		for (unsigned int i = 0; i < w; i++) {
+			BYTE grayScale = 0;
+			if(data[(w*j + i)] != MINF) {
+				grayScale = std::min(std::max(0, (int)(255.0f*(data[(w*j + i)]))), 255);
+			}
+			color.rgbRed = grayScale; 
+			color.rgbGreen = grayScale;
+			color.rgbBlue = grayScale;
+
+			if (!flipY)	FreeImage_SetPixelColor(dib, i, h - 1 - j, &color);
+			else		FreeImage_SetPixelColor(dib, i, j, &color);
+		}
+	}
+	bool r = FreeImage_Save(fif, dib, filename.c_str(), 0) == 1;
+	FreeImage_Unload(dib);
+	return r;
+}
 
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
