@@ -33,12 +33,34 @@ public:
 
 		rawDepthMap = depthMap;
 		computeSmoothedDepthMap(width, height, windowSize, sigmaR, sigmaS);
+		/*
+		std::cout << "Printing smooth map:" << std::endl;
+		for (unsigned int j = 0; j < height; j++) {
+			for (unsigned int i = 0; i < width; i++) {
+				std::cout << " " << smoothedDepthMap[(width*j + i)];
+			}
+			std::cout << std::endl;
+		}
+		*/
+		FreeImage smoothedDepthImage(width, height, 1);
+		smoothedDepthImage.data = smoothedDepthMap;
+		std::cout << "Saving smoothed depthmap... " << std::endl;
+		std::string fileName("./SmoothedDepthMap");
+		smoothedDepthImage.SaveDepthMapToFile(fileName + std::to_string(0) + ".png");
+
 		float* currentDepthMap = smoothedDepthMap;
 		pointClouds.reserve(levels);
+		pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, width, height, 0);
 		for (size_t i = 0; i < levels; i++)
 		{
-			pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, width >> i, height >> i);
-			currentDepthMap = subsampleDepthMap(currentDepthMap, width >> i, height >> i, blockSize, sigmaR);
+			currentDepthMap = subsampleDepthMap(currentDepthMap, width >> i, height >> i, blockSize, sigmaR, i + 1);
+
+			FreeImage subsampledDepthImage(width >> i, height >> i, 1);
+			std::cout << "Saving subsampled depthmap... " << std::endl;
+			std::string fileName("./SubsampledDepthMap");
+			smoothedDepthImage.SaveDepthMapToFile(fileName + std::to_string(i+1) + ".png");
+
+			pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, width >> i, height >> i, i + 1);	
 		}
 	}
 
@@ -78,7 +100,10 @@ private:
 					for (int x = lowerLimitWidth; x < upperLimitWidth; ++x)
 					{
 						unsigned int idxWindow = y * width + x; // linearized index
-						float summand = std::exp(-((u - x) << 1 + (v - y) << 1) * (1 / std::pow(sigmaR, 2))) * std::exp(-(std::abs(rawDepthMap[idx] - rawDepthMap[idxWindow]) * (1 / std::pow(sigmaS, 2))));
+						if (rawDepthMap[idxWindow] == MINF) {
+							continue;
+						}
+						float summand = std::exp(-(std::pow((u - x), 2) + std::pow((v - y), 2)) * (1 / std::pow(sigmaS, 2))) * std::exp(-(std::pow(rawDepthMap[idx] - rawDepthMap[idxWindow], 2) * (1 / std::pow(sigmaR, 2))));
 						normalizer += summand;
 						sum += summand * rawDepthMap[idxWindow];
 					}
@@ -89,14 +114,11 @@ private:
 	}
 
 private:
-	float* subsampleDepthMap(float* depthMap, const unsigned width, const unsigned height, const unsigned blockSize, const float sigmaR)
+	float* subsampleDepthMap(float* depthMap, const unsigned width, const unsigned height, const unsigned blockSize, const float sigmaR, const int level)
 	{
-		malloc(480*640*24*20);
 		float threshold = 3 * sigmaR;
 		float* blockAverage = new float[(width / 2) * (height / 2)];
-		malloc(480*640*24*20);
-		malloc(480*640*24*20);
-//#pragma omp parallel for
+#pragma omp parallel for
 		for (int v = 0; v < height; v = v + 2)
 		{
 			for (int u = 0; u < width; u = u + 2)
@@ -111,17 +133,15 @@ private:
 					{
 						unsigned int idxBlock = y * width + x; // linearized index
 						// TODO: Check whether pipeline issues due to wrong branch prediction are slower than this version without branching
-						int invalid = (int)(std::abs(rawDepthMap[idxBlock] - rawDepthMap[idx]) > threshold);
+						int invalid = (int)(std::abs(depthMap[idxBlock] - depthMap[idx]) > threshold);
 						blockEntries -= invalid;
-						sum += rawDepthMap[idxBlock] * (1 - invalid);
+						sum += depthMap[idxBlock] * (1 - invalid);
 					}
 				}
 				blockAverage[(v / 2) * (width/2) + (u / 2)] = sum / blockEntries;
 			}
 		}
-		FreeImage image(width, height, 1);
-		image.data = depthMap;
-		image.SaveImageToFile("../../DepthMap.png");
+
 		// TODO: Ensure to delete depthMap after computation, except if it is the original smoothed one
 		if (depthMap != smoothedDepthMap) {
 			delete[] depthMap;

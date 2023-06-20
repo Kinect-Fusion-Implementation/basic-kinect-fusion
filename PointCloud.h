@@ -13,7 +13,7 @@ public:
 	/**
 	 * represents the vertex and point map, relatively to the camera (in the camera frame)
 	 */
-	PointCloud(float* depthMap, const Matrix3f& depthIntrinsics, const Matrix4f& depthExtrinsics, const unsigned int width, const unsigned int height, const unsigned int maxDistance = 10)
+	PointCloud(float* depthMap, const Matrix3f& depthIntrinsics, const Matrix4f& depthExtrinsics, const unsigned int width, const unsigned int height, int level, const unsigned int maxDistance = 10)
 	{
 		// Get depth intrinsics.
 		float fovX = depthIntrinsics(0, 0);
@@ -87,6 +87,11 @@ public:
 			normalsTmp[(width - 1) + v * width] = Vector3f(MINF, MINF, MINF);
 		}
 
+		
+		FreeImage normalImage(width, height, 3);
+		normalImage.data = (float*) normalsTmp.data();
+		std::string fileName("./NormalMap");
+		normalImage.SaveImageToFile(fileName + std::to_string(level) + ".png");
 		// We filter out measurements where either point or normal is invalid.
 		const unsigned nPoints = pointsTmp.size();
 		m_points.reserve(std::floor(float(nPoints)));
