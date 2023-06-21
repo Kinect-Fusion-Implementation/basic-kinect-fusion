@@ -42,10 +42,7 @@ Expected Output:
 
 ## Debug
 
-- Debug smoothing of depth map
-- Debug subsampling of depth map
-
 ## Documentation
 
-- Document ImageHelper
-- Document PointCloudPyramid
+- ImageHelper
+- PointCloudPyramid
