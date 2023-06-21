@@ -25,11 +25,9 @@ int main() {
 		// Size of smoothing window
 		const unsigned windowSize = 7;
 		// Size of subsampling window
-		const unsigned blockSize = 7;
-		// If there are more pixels than this in the smoothing window, we don't smoothe.
-		const unsigned invalidThreshold = 10;
+		const unsigned blockSize = 3;
 
-		PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthExtrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, invalidThreshold, sigmaS, sigmaR);
+		PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthExtrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaS, sigmaR);
 		const std::vector<PointCloud>& cloud = pyramid.getPointClouds();
 
 		counter++;

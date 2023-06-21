@@ -36,7 +36,7 @@ public:
 		delete[] m_smoothedDepthMap;
 	}
 
-	PointCloudPyramid(float* depthMap, const Matrix3f& depthIntrinsics, const Matrix4f& depthExtrinsics, const unsigned int width, const unsigned int height, const unsigned int levels, const unsigned int windowSize, const unsigned int blockSize, const unsigned int invalidThreshold, const float sigmaS, const float sigmaR) : m_width(width), m_height(height), m_windowSize(windowSize), m_blockSize(blockSize)
+	PointCloudPyramid(float* depthMap, const Matrix3f& depthIntrinsics, const Matrix4f& depthExtrinsics, const unsigned int width, const unsigned int height, const unsigned int levels, const unsigned int windowSize, const unsigned int blockSize, const float sigmaS, const float sigmaR) : m_width(width), m_height(height), m_windowSize(windowSize), m_blockSize(blockSize)
 	{
 		assert(m_width > 0);
 		assert(m_height > 0);
@@ -45,12 +45,12 @@ public:
 		assert(m_blockSize % 2 == 1);
 
 		rawDepthMap = depthMap;
-		computeSmoothedDepthMap(invalidThreshold, sigmaR, sigmaS);
+		computeSmoothedDepthMap(sigmaR, sigmaS);
 
 		FreeImage smoothedDepthImage(m_width, m_height, 1);
 		smoothedDepthImage.data = m_smoothedDepthMap;
 		std::cout << "Saving smoothed depthmap... " << std::endl;
-		std::string fileName("./SmoothedDepthMap");
+		std::string fileName("../Output/SmoothedDepthMap");
 		smoothedDepthImage.SaveDepthMapToFile(fileName + std::to_string(0) + ".png");
 
 		float* currentDepthMap = m_smoothedDepthMap;
@@ -62,7 +62,7 @@ public:
 			i++;
 			FreeImage subsampledDepthImage(m_width >> i, m_height >> i, 1);
 			std::cout << "Saving subsampled depthmap... " << std::endl;
-			std::string fileName("./SubsampledDepthMap");
+			std::string fileName("../Output/SubsampledDepthMap");
 			subsampledDepthImage.data = currentDepthMap;
 			subsampledDepthImage.SaveDepthMapToFile(fileName + std::to_string(i) + ".png");
 
@@ -79,7 +79,7 @@ private:
 	/**
 	 * Computes the smoothed depthmap for every pixel based on a windowSize
 	 */
-	void computeSmoothedDepthMap(const int validitySmoothingThreshold, const float sigmaR, const float sigmaS)
+	void computeSmoothedDepthMap(const float sigmaR, const float sigmaS)
 	{
 		// Create row major representation of depth map
 		m_smoothedDepthMap = new float[m_width * m_height];
@@ -89,23 +89,26 @@ private:
 			for (int u = 0; u < m_width; ++u)
 			{
 				unsigned int idx = v * m_width + u; // linearized index
+				if (rawDepthMap[idx] == MINF) {
+					m_smoothedDepthMap[idx] = MINF;
+					continue;
+				}
+
 				float normalizer = 0.0;
 				float sum = 0.0;
-				int invalidCounter = 0;
 
 				const int lowerLimitHeight = std::max(v - (m_windowSize / 2), 0);
 				const int upperLimitHeight = std::min(v + (m_windowSize / 2) + 1, m_height);
+				const int lowerLimitWidth = std::max(u - (m_windowSize / 2), 0);
+				const int upperLimitWidth = std::min(u + (m_windowSize / 2) + 1, m_width);
+
 				// Compute bilinear filter over the windowSize
 				for (int y = lowerLimitHeight; y < upperLimitHeight; ++y)
 				{
-					const int lowerLimitWidth = std::max(u - (m_windowSize / 2), 0);
-					const int upperLimitWidth = std::min(u + (m_windowSize / 2) + 1, m_width);
 					for (int x = lowerLimitWidth; x < upperLimitWidth; ++x)
 					{
 						unsigned int idxWindow = y * m_width + x; // linearized index
-						// TODO: Check whether depth difference too large
 						if (rawDepthMap[idxWindow] == MINF) {
-							invalidCounter++;
 							continue;
 						}
 						float summand = std::exp(-(std::pow((u - x), 2) + std::pow((v - y), 2)) * (1 / std::pow(sigmaS, 2))) * std::exp(-(std::pow(rawDepthMap[idx] - rawDepthMap[idxWindow], 2) * (1 / std::pow(sigmaR, 2))));
@@ -113,12 +116,7 @@ private:
 						sum += summand * rawDepthMap[idxWindow];
 					}
 				}
-				if (rawDepthMap[idx] != MINF || invalidCounter < validitySmoothingThreshold) {
-					m_smoothedDepthMap[idx] = sum / normalizer;
-				}
-				else {
-					m_smoothedDepthMap[idx] = MINF;
-				}
+				m_smoothedDepthMap[idx] = sum / normalizer;
 			}
 		}
 	}
@@ -135,17 +133,31 @@ private:
 			{
 				unsigned int idx = v * width + u; // linearized index
 				float sum = 0.0;
-				unsigned blockEntries = m_blockSize * m_blockSize;
-				// Compute block average
-				for (int y = std::max(v - (m_blockSize / 2), 0); y < std::min(v + (m_blockSize / 2) + 1, int(height)); ++y)
+
+				const int lowerLimitHeight = std::max(v - (m_blockSize / 2), 0);
+				const int upperLimitHeight = std::min(v + (m_blockSize / 2) + 1, int(height));
+				const int lowerLimitWidth = std::max(u - (m_blockSize / 2), 0);
+				const int upperLimitWidth = std::min(u + (m_blockSize / 2) + 1, int(width));
+				/*if (u == 208 && v == 328) {
+					std::cout << std::endl;
+				}*/
+				unsigned blockEntries = (upperLimitHeight - lowerLimitHeight) * (upperLimitWidth - lowerLimitWidth);
+
+				// Compute block average over the blockSize
+				for (int y = lowerLimitHeight; y < upperLimitHeight; ++y)
 				{
-					for (int x = std::max(u - (m_blockSize / 2), 0); x < std::min(u + (m_blockSize / 2) + 1, int(width)); ++x)
-					{
+					for (int x = lowerLimitWidth; x < upperLimitWidth; ++x) {
 						unsigned int idxBlock = y * width + x; // linearized index
-						// TODO: Check whether pipeline issues due to wrong branch prediction are slower than this version without branching
-						int invalid = (int)(std::abs(depthMap[idxBlock] - depthMap[idx]) > threshold);
-						blockEntries -= invalid;
-						sum += depthMap[idxBlock] * (1 - invalid);
+						if (depthMap[idxBlock] == MINF) {
+							blockEntries--;
+						}
+						// If the depth at idx is not defined, we don't care about the threshold.
+						else if (depthMap[idx] == MINF || std::abs(depthMap[idxBlock] - depthMap[idx]) <= threshold) {
+							sum += depthMap[idxBlock];
+						}
+						else {
+							blockEntries--;
+						}
 					}
 				}
 				blockAverage[(v / 2) * (width / 2) + (u / 2)] = sum / blockEntries;
