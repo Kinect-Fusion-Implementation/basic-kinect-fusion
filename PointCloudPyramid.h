@@ -9,17 +9,27 @@
 class PointCloudPyramid
 {
 private:
+	// Stores layers of the pyramid
 	std::vector<PointCloud> pointClouds;
+	// Original depth map
 	float* rawDepthMap;
+	// Smoothed depth map
 	float* m_smoothedDepthMap;
+	// Width of raw and smoothed depth map
 	int m_width;
+	// Height of raw and smoothed depth map
 	int m_height;
+	// Sidelength of square considered for smoothing
 	int m_windowSize;
+	// Sidelength of square considered for subsampling
 	int m_blockSize;
 
 private:
 	PointCloudPyramid() {}
 
+	/*
+	* Prints a 2D float array on the console.
+	*/
 	void printImageArray(float* map, int width, int height, std::string name) {
 		std::cout << "Printing " + name + ":" << std::endl;
 		for (unsigned int j = 0; j < height; j++) {
@@ -36,36 +46,59 @@ public:
 		delete[] m_smoothedDepthMap;
 	}
 
-	PointCloudPyramid(float* depthMap, const Matrix3f& depthIntrinsics, const Matrix4f& depthExtrinsics, const unsigned int width, const unsigned int height, const unsigned int levels, const unsigned int windowSize, const unsigned int blockSize, const float sigmaS, const float sigmaR) : m_width(width), m_height(height), m_windowSize(windowSize), m_blockSize(blockSize)
+	/*
+	* Constructs a pyramid of pointClouds. The first level gets smoothed and the others subsampled.
+	*
+	* depthMap: The original depth map
+	* depthIntrinsics: The matrix which maps from camera space to pixel space
+	* depthExtrinsics: The matrix which maps from world space to camera space
+	* width: The width of the depth map, must be positive
+	* height: The height of the depth map, must be positive
+	* levels: The number of levels of the pyramid
+	* windowSize: The sidelength of the square considered for the smoothing
+	* blockSize: The sidelength of the square considered for the subsampling
+	* sigmaR: Parameter for bilinear smoothing
+	* sigmaS: Parameter for bilinear smoothing
+	*/
+	PointCloudPyramid(float* depthMap, const Matrix3f& depthIntrinsics, const Matrix4f& depthExtrinsics, const unsigned int width, const unsigned int height, const unsigned int levels, const unsigned int windowSize, const unsigned int blockSize, const float sigmaR, const float sigmaS) : rawDepthMap(depthMap), m_width(width), m_height(height), m_windowSize(windowSize), m_blockSize(blockSize)
 	{
+		// Input validation
 		assert(m_width > 0);
 		assert(m_height > 0);
 		assert(m_windowSize > 0);
 		assert(m_windowSize % 2 == 1);
 		assert(m_blockSize % 2 == 1);
 
-		rawDepthMap = depthMap;
+		// Compute smoothed depth map
 		computeSmoothedDepthMap(sigmaR, sigmaS);
 
+		// Print smoothed depth map to file
 		FreeImage smoothedDepthImage(m_width, m_height, 1);
 		smoothedDepthImage.data = m_smoothedDepthMap;
 		std::cout << "Saving smoothed depthmap... " << std::endl;
 		std::string fileName("../Output/SmoothedDepthMap");
 		smoothedDepthImage.SaveDepthMapToFile(fileName + std::to_string(0) + ".png");
 
+		// Setup of pyramid
 		float* currentDepthMap = m_smoothedDepthMap;
 		pointClouds.reserve(levels);
+
+		// Construct pyramid of pointClouds
 		pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, m_width, m_height, 0);
 		for (size_t i = 0; i < levels;)
 		{
-			currentDepthMap = subsampleDepthMap(currentDepthMap, m_width >> i, m_height >> i, sigmaR, i + 1);
+			// Compute subsampled depth map
+			currentDepthMap = subsampleDepthMap(currentDepthMap, m_width >> i, m_height >> i, sigmaR);
 			i++;
+
+			// Print subsampled depth map to file
 			FreeImage subsampledDepthImage(m_width >> i, m_height >> i, 1);
 			std::cout << "Saving subsampled depthmap... " << std::endl;
 			std::string fileName("../Output/SubsampledDepthMap");
 			subsampledDepthImage.data = currentDepthMap;
 			subsampledDepthImage.SaveDepthMapToFile(fileName + std::to_string(i) + ".png");
 
+			// Store subsampled depth map in pyramid
 			pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, m_width >> i, m_height >> i, i);
 		}
 	}
@@ -76,8 +109,8 @@ public:
 	}
 
 private:
-	/**
-	 * Computes the smoothed depthmap for every pixel based on a windowSize
+	/*
+	 * Computes the smoothed depth map using bilinear smoothing.
 	 */
 	void computeSmoothedDepthMap(const float sigmaR, const float sigmaS)
 	{
@@ -97,12 +130,13 @@ private:
 				float normalizer = 0.0;
 				float sum = 0.0;
 
+				// Compute bilinear smoothing only on pixels in window of size m_windowSize
 				const int lowerLimitHeight = std::max(v - (m_windowSize / 2), 0);
 				const int upperLimitHeight = std::min(v + (m_windowSize / 2) + 1, m_height);
 				const int lowerLimitWidth = std::max(u - (m_windowSize / 2), 0);
 				const int upperLimitWidth = std::min(u + (m_windowSize / 2) + 1, m_width);
 
-				// Compute bilinear filter over the windowSize
+				// Compute bilinear smoothing
 				for (int y = lowerLimitHeight; y < upperLimitHeight; ++y)
 				{
 					for (int x = lowerLimitWidth; x < upperLimitWidth; ++x)
@@ -122,7 +156,17 @@ private:
 	}
 
 private:
-	float* subsampleDepthMap(float* depthMap, const unsigned width, const unsigned height, const float sigmaR, const int level)
+	/*
+	 * Computes a subsampled depth map using blockSize. The new depth map has half the width and height of the old one.
+	 *
+	 * depthMap: The depth map to be subsampled
+	 * width: The width of the old depth map
+	 * height: The height of the old depth map
+	 * sigmaR: Defines depth threshold for block averaging
+	 *
+	 * Returns pointer to the subsampled depth map.
+	 */
+	float* subsampleDepthMap(float* depthMap, const unsigned width, const unsigned height, const float sigmaR)
 	{
 		float threshold = 3 * sigmaR;
 		float* blockAverage = new float[(width / 2) * (height / 2)];
@@ -138,9 +182,6 @@ private:
 				const int upperLimitHeight = std::min(v + (m_blockSize / 2) + 1, int(height));
 				const int lowerLimitWidth = std::max(u - (m_blockSize / 2), 0);
 				const int upperLimitWidth = std::min(u + (m_blockSize / 2) + 1, int(width));
-				/*if (u == 208 && v == 328) {
-					std::cout << std::endl;
-				}*/
 				unsigned blockEntries = (upperLimitHeight - lowerLimitHeight) * (upperLimitWidth - lowerLimitWidth);
 
 				// Compute block average over the blockSize
@@ -164,11 +205,9 @@ private:
 			}
 		}
 
-		// TODO: Ensure to delete depthMap after computation, except if it is the original smoothed one
 		if (depthMap != m_smoothedDepthMap) {
 			delete[] depthMap;
 		}
-		// delete[] depthMap
 		return blockAverage;
 	}
 };

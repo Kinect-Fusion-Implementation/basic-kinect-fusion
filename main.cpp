@@ -27,7 +27,7 @@ int main() {
 		// Size of subsampling window
 		const unsigned blockSize = 3;
 
-		PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthExtrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaS, sigmaR);
+		PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthExtrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
 		const std::vector<PointCloud>& cloud = pyramid.getPointClouds();
 
 		counter++;

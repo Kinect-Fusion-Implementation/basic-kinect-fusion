@@ -43,6 +43,3 @@ Expected Output:
 ## Debug
 
 ## Documentation
-
-- ImageHelper
-- PointCloudPyramid
