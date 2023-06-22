@@ -14,7 +14,7 @@ typedef unsigned char BYTE;
 class VirtualSensor {
 public:
 
-	VirtualSensor() : m_currentIdx(-1), m_increment(1) { }
+	VirtualSensor() : m_currentIdx(-1), m_increment(1), m_depthFrame(nullptr), m_colorFrame(nullptr) { }
 
 	~VirtualSensor() {
 		SAFE_DELETE_ARRAY(m_depthFrame);
@@ -54,7 +54,6 @@ public:
 
 		m_colorFrame = new BYTE[4 * m_colorImageWidth * m_colorImageHeight];
 		for (unsigned int i = 0; i < 4 * m_colorImageWidth * m_colorImageHeight; ++i) m_colorFrame[i] = 255;
-
 
 		m_currentIdx = -1;
 		return true;

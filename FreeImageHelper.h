@@ -31,13 +31,13 @@ struct FreeImage {
 	bool LoadImageFromFile(const std::string& filename, unsigned int width = 0, unsigned int height = 0);
 
 	bool SaveImageToFile(const std::string& filename, bool flipY = false);
+	bool SaveDepthMapToFile(const std::string& filename, bool flipY = false);
 
 	unsigned int w;
 	unsigned int h;
 	unsigned int nChannels;
 	float* data;
 };
-
 
 struct FreeImageB {
 

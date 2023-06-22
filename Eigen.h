@@ -17,6 +17,10 @@
 #define SAFE_DELETE_ARRAY(ptr) {if(ptr!=nullptr) {delete[] ptr; ptr = nullptr;}}
 #endif
 
+#ifndef INF
+#define INF std::numeric_limits<float>::infinity()
+#endif
+
 #ifndef MINF
 #define MINF -std::numeric_limits<float>::infinity()
 #endif
