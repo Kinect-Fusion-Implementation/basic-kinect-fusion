@@ -82,7 +82,7 @@ public:
 
 		// Setup of pyramid
 		float* currentDepthMap = m_smoothedDepthMap;
-		pointClouds.reserve(levels);
+		pointClouds.reserve(levels + 1);
 
 		// Construct pyramid of pointClouds
 		pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, m_width, m_height, 0);

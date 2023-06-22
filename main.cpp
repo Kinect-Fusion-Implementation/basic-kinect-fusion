@@ -15,10 +15,9 @@ int main() {
 	VirtualSensor sensor;
 	sensor.init(filenameIn);
 
-	VoxelGrid grid(3000, 3000, 1);
+	VoxelGrid grid(300, 300, 4);
 
-	int counter = 0;
-	while (counter == 0 && sensor.processNextFrame()) {
+	while (sensor.processNextFrame()) {
 		float* depth = sensor.getDepth();
 
 		float sigmaS(0.1);
@@ -34,7 +33,7 @@ int main() {
 		PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthExtrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
 		const std::vector<PointCloud>& cloud = pyramid.getPointClouds();
 
-		counter++;
+		break;
 	}
 
 	return result;
