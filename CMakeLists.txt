@@ -21,6 +21,15 @@ if(WIN32)
     endif()
 endif(WIN32)
 
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(Eigen3_DIR /opt/homebrew/Cellar/eigen/3.4.0_1/share/eigen3/cmake CACHE PATH "Path to installed Eigen")
+    set(glog_DIR /opt/homebrew/Cellar/glog/0.6.0/lib/cmake/glog CACHE PATH "Path to installed glog")
+    set(Ceres_DIR /opt/homebrew/Cellar/ceres-solver/2.1.0_3/lib/cmake/Ceres CACHE PATH "Path to installed Ceres")
+    #set(Flann_INCLUDE_DIR /opt/homebrew/Cellar/flann/1.9.2_1/ CACHE PATH "Path to Flann source folder")
+    set(FreeImage_INCLUDE_DIR /opt/homebrew/Cellar/freeimage/3.18.0/include/ CACHE PATH "Homebrew Path header")
+    set(FreeImage_LIBRARY_DIR /opt/homebrew/Cellar/freeimage/3.18.0/lib/ CACHE PATH "Homebrew Path lib")
+endif()
+
 # Set C++ flags
 set(CMAKE_CXX_STANDARD 14)
 
