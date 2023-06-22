@@ -50,6 +50,7 @@ public:
 		FreeImage smoothedDepthImage(m_width, m_height, 1);
 		smoothedDepthImage.data = m_smoothedDepthMap;
 		std::cout << "Saving smoothed depthmap... " << std::endl;
+		// Dominik: std::string fileName("./Output/SmoothedDepthMap");
 		std::string fileName("../Output/SmoothedDepthMap");
 		smoothedDepthImage.SaveDepthMapToFile(fileName + std::to_string(0) + ".png");
 
@@ -62,7 +63,8 @@ public:
 			i++;
 			FreeImage subsampledDepthImage(m_width >> i, m_height >> i, 1);
 			std::cout << "Saving subsampled depthmap... " << std::endl;
-			std::string fileName("../Output/SubsampledDepthMap");
+			// Dominik: std::string fileName("../Output/SubsampledDepthMap");
+			std::string fileName("./Output/SubsampledDepthMap");
 			subsampledDepthImage.data = currentDepthMap;
 			subsampledDepthImage.SaveDepthMapToFile(fileName + std::to_string(i) + ".png");
 

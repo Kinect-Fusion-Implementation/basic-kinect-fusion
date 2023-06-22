@@ -90,6 +90,7 @@ public:
 		
 		FreeImage normalImage(width, height, 3);
 		normalImage.data = (float*) normalsTmp.data();
+		// Dominik: std::string fileName("./Output/NormalMap");
 		std::string fileName("../Output/NormalMap");
 		normalImage.SaveImageToFile(fileName + std::to_string(level) + ".png");
 		// We filter out measurements where either point or normal is invalid.

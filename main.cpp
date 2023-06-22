@@ -5,13 +5,17 @@
 #include "VirtualSensor.h"
 #include "ICPOptimizer.h"
 #include "PointCloud.h"
+#include "TSDFVoxelGrid.h"
 #include "PointCloudPyramid.h"
 
 int main() {
 	int result = 0;
 
 	VirtualSensor sensor;
+	//Dominik: sensor.init("../../cv-data/RGBD-Dataset-Freiburg1/");
 	sensor.init("../../../Data/rgbd_dataset_freiburg1_xyz/");
+
+	VoxelGrid grid(3000, 3000, 1);
 
 	int counter = 0;
 	while (counter == 0 && sensor.processNextFrame()) {
