@@ -36,7 +36,6 @@ private:
 			for (unsigned int i = 0; i < width; i++) {
 				std::cout << " " << map[(width * j + i)];
 			}
-			std::cout << std::endl;
 		}
 	}
 
