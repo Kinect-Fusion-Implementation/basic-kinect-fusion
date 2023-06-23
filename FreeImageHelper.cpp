@@ -4,24 +4,22 @@
 #include <cassert>
 #include <cstring>
 
-//#pragma comment(lib, "FreeImage.lib")
+// #pragma comment(lib, "FreeImage.lib")
 
 FreeImage::FreeImage() : w(0), h(0), nChannels(0), data(nullptr)
 {
 }
 
-FreeImage::FreeImage(unsigned int width, unsigned int height, unsigned int nChannels) :
-	w(width), h(height), nChannels(nChannels), data(nullptr)
+FreeImage::FreeImage(unsigned int width, unsigned int height, unsigned int nChannels) : w(width), h(height), nChannels(nChannels), data(nullptr)
 {
 }
 
-FreeImage::FreeImage(const FreeImage& img) :
-	w(img.w), h(img.h), nChannels(img.nChannels), data(new float[nChannels * img.w * img.h])
+FreeImage::FreeImage(const FreeImage &img) : w(img.w), h(img.h), nChannels(img.nChannels), data(new float[nChannels * img.w * img.h])
 {
 	memcpy(data, img.data, sizeof(float) * nChannels * w * h);
 }
 
-FreeImage::FreeImage(const std::string& filename) : w(0), h(0), nChannels(0), data(nullptr)
+FreeImage::FreeImage(const std::string &filename) : w(0), h(0), nChannels(0), data(nullptr)
 {
 	LoadImageFromFile(filename);
 }
@@ -30,7 +28,7 @@ FreeImage::~FreeImage()
 {
 }
 
-void FreeImage::operator=(const FreeImage& other)
+void FreeImage::operator=(const FreeImage &other)
 {
 	if (other.data != this->data)
 	{
@@ -41,7 +39,8 @@ void FreeImage::operator=(const FreeImage& other)
 
 void FreeImage::SetDimensions(unsigned int width, unsigned int height, unsigned int nChannels)
 {
-	if (data != nullptr) delete[] data;
+	if (data != nullptr)
+		delete[] data;
 	w = width;
 	h = height;
 	this->nChannels = nChannels;
@@ -69,56 +68,63 @@ FreeImage FreeImage::ConvertToIntensity() const
 					sum += data[nChannels * (i + w * j) + c];
 				}
 			}
-			if (sum == MINF) result.data[i + w * j] = MINF;
-			else result.data[i + w * j] = sum / nChannels;
+			if (sum == MINF)
+				result.data[i + w * j] = MINF;
+			else
+				result.data[i + w * j] = sum / nChannels;
 		}
 	}
 
 	return result;
 }
 
-bool FreeImage::LoadImageFromFile(const std::string& filename, unsigned int width, unsigned int height)
+bool FreeImage::LoadImageFromFile(const std::string &filename, unsigned int width, unsigned int height)
 {
 	FreeImage_Initialise();
-	if (data != nullptr) delete[] data;
+	if (data != nullptr)
+		delete[] data;
 
-	//image format
+	// image format
 	FREE_IMAGE_FORMAT fif = FIF_UNKNOWN;
-	//pointer to the image, once loaded
-	FIBITMAP* dib(0);
+	// pointer to the image, once loaded
+	FIBITMAP *dib(0);
 
-	//check the file signature and deduce its format
+	// check the file signature and deduce its format
 	fif = FreeImage_GetFileType(filename.c_str(), 0);
-	if (fif == FIF_UNKNOWN) fif = FreeImage_GetFIFFromFilename(filename.c_str());
-	if (fif == FIF_UNKNOWN) return false;
+	if (fif == FIF_UNKNOWN)
+		fif = FreeImage_GetFIFFromFilename(filename.c_str());
+	if (fif == FIF_UNKNOWN)
+		return false;
 
-	//check that the plugin has reading capabilities and load the file
-	if (FreeImage_FIFSupportsReading(fif)) dib = FreeImage_Load(fif, filename.c_str());
-	if (!dib) return false;
+	// check that the plugin has reading capabilities and load the file
+	if (FreeImage_FIFSupportsReading(fif))
+		dib = FreeImage_Load(fif, filename.c_str());
+	if (!dib)
+		return false;
 
 	// Convert to RGBA float images
-	FIBITMAP* hOldImage = dib;
+	FIBITMAP *hOldImage = dib;
 	dib = FreeImage_ConvertToRGBAF(hOldImage); // ==> 4 channels
 	FreeImage_Unload(hOldImage);
 
-	//get the image width and height
+	// get the image width and height
 	w = FreeImage_GetWidth(dib);
 	h = FreeImage_GetHeight(dib);
 
 	// rescale to fit width and height
 	if (width != 0 && height != 0)
 	{
-		FIBITMAP* hOldImage = dib;
+		FIBITMAP *hOldImage = dib;
 		dib = FreeImage_Rescale(hOldImage, width, height, FILTER_CATMULLROM);
 		FreeImage_Unload(hOldImage);
 		w = width;
 		h = height;
 	}
 
-	//retrieve the image data
-	BYTE* bits = FreeImage_GetBits(dib);
+	// retrieve the image data
+	BYTE *bits = FreeImage_GetBits(dib);
 
-	//if this somehow one of these failed (they shouldn't), return failure
+	// if this somehow one of these failed (they shouldn't), return failure
 	if ((bits == 0) || (w == 0) || (h == 0))
 		return false;
 
@@ -132,22 +138,24 @@ bool FreeImage::LoadImageFromFile(const std::string& filename, unsigned int widt
 	{
 		memcpy(&(data[y * nChannels * w]), &bits[sizeof(float) * (h - 1 - y) * nChannels * w], sizeof(float) * nChannels * w);
 	}
-	//memcpy(data, bits, sizeof(float) * nChannels * w * h);
+	// memcpy(data, bits, sizeof(float) * nChannels * w * h);
 
-	//Free FreeImage's copy of the data
+	// Free FreeImage's copy of the data
 	FreeImage_Unload(dib);
 
 	return true;
 }
 
-bool FreeImage::SaveImageToFile(const std::string& filename, bool flipY)
+bool FreeImage::SaveImageToFile(const std::string &filename, bool flipY)
 {
 	FREE_IMAGE_FORMAT fif = FIF_PNG;
-	FIBITMAP* dib = FreeImage_Allocate(w, h, 24);
+	FIBITMAP *dib = FreeImage_Allocate(w, h, 24);
 	RGBQUAD color;
-	for (unsigned int j = 0; j < h; j++) {
-		for (unsigned int i = 0; i < w; i++) {
-			unsigned char col[3] = { 0, 0, 0 };
+	for (unsigned int j = 0; j < h; j++)
+	{
+		for (unsigned int i = 0; i < w; i++)
+		{
+			unsigned char col[3] = {0, 0, 0};
 
 			for (unsigned int c = 0; c < nChannels && c < 3; ++c)
 			{
@@ -157,8 +165,10 @@ bool FreeImage::SaveImageToFile(const std::string& filename, bool flipY)
 			color.rgbRed = col[0];
 			color.rgbGreen = col[1];
 			color.rgbBlue = col[2];
-			if (!flipY)	FreeImage_SetPixelColor(dib, i, h - 1 - j, &color);
-			else		FreeImage_SetPixelColor(dib, i, j, &color);
+			if (!flipY)
+				FreeImage_SetPixelColor(dib, i, h - 1 - j, &color);
+			else
+				FreeImage_SetPixelColor(dib, i, j, &color);
 		}
 	}
 	bool r = FreeImage_Save(fif, dib, filename.c_str(), 0) == 1;
@@ -166,25 +176,30 @@ bool FreeImage::SaveImageToFile(const std::string& filename, bool flipY)
 	return r;
 }
 
-bool FreeImage::SaveDepthMapToFile(const std::string& filename, bool flipY)
+bool FreeImage::SaveDepthMapToFile(const std::string &filename, bool flipY)
 {
 	assert(this->nChannels == 1);
 	FREE_IMAGE_FORMAT fif = FIF_PNG;
-	FIBITMAP* dib = FreeImage_Allocate(w, h, 24);
+	FIBITMAP *dib = FreeImage_Allocate(w, h, 24);
 	RGBQUAD color;
 
-	for (unsigned int j = 0; j < h; j++) {
-		for (unsigned int i = 0; i < w; i++) {
+	for (unsigned int j = 0; j < h; j++)
+	{
+		for (unsigned int i = 0; i < w; i++)
+		{
 			BYTE grayScale = 0;
-			if (data[(w * j + i)] != MINF) {
+			if (data[(w * j + i)] != MINF)
+			{
 				grayScale = std::min(std::max(0, (int)(255.0f * (data[(w * j + i)] / 8.f))), 255);
 			}
 			color.rgbRed = grayScale;
 			color.rgbGreen = grayScale;
 			color.rgbBlue = grayScale;
 
-			if (!flipY)	FreeImage_SetPixelColor(dib, i, h - 1 - j, &color);
-			else		FreeImage_SetPixelColor(dib, i, j, &color);
+			if (!flipY)
+				FreeImage_SetPixelColor(dib, i, h - 1 - j, &color);
+			else
+				FreeImage_SetPixelColor(dib, i, j, &color);
 		}
 	}
 	bool r = FreeImage_Save(fif, dib, filename.c_str(), 0) == 1;
@@ -195,33 +210,31 @@ bool FreeImage::SaveDepthMapToFile(const std::string& filename, bool flipY)
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
 
-
 FreeImageB::FreeImageB() : w(0), h(0), nChannels(0), data(nullptr)
 {
 }
 
-FreeImageB::FreeImageB(unsigned int width, unsigned int height, unsigned int nChannels) :
-	w(width), h(height), nChannels(nChannels), data(new BYTE[nChannels * width * height])
+FreeImageB::FreeImageB(unsigned int width, unsigned int height, unsigned int nChannels) : w(width), h(height), nChannels(nChannels), data(new BYTE[nChannels * width * height])
 {
 }
 
-FreeImageB::FreeImageB(const FreeImage& img) :
-	w(img.w), h(img.h), nChannels(img.nChannels), data(new BYTE[nChannels * img.w * img.h])
+FreeImageB::FreeImageB(const FreeImage &img) : w(img.w), h(img.h), nChannels(img.nChannels), data(new BYTE[nChannels * img.w * img.h])
 {
 	memcpy(data, img.data, sizeof(BYTE) * nChannels * w * h);
 }
 
-FreeImageB::FreeImageB(const std::string& filename) : w(0), h(0), nChannels(0), data(nullptr)
+FreeImageB::FreeImageB(const std::string &filename) : w(0), h(0), nChannels(0), data(nullptr)
 {
 	LoadImageFromFile(filename);
 }
 
 FreeImageB::~FreeImageB()
 {
-	if (data != nullptr) delete[] data;
+	if (data != nullptr)
+		delete[] data;
 }
 
-void FreeImageB::operator=(const FreeImageB& other)
+void FreeImageB::operator=(const FreeImageB &other)
 {
 	if (other.data != this->data)
 	{
@@ -232,58 +245,63 @@ void FreeImageB::operator=(const FreeImageB& other)
 
 void FreeImageB::SetDimensions(unsigned int width, unsigned int height, unsigned int nChannels)
 {
-	if (data != nullptr) delete[] data;
+	if (data != nullptr)
+		delete[] data;
 	w = width;
 	h = height;
 	this->nChannels = nChannels;
 	data = new BYTE[nChannels * width * height];
 }
 
-bool FreeImageB::LoadImageFromFile(const std::string& filename, unsigned int width, unsigned int height)
+bool FreeImageB::LoadImageFromFile(const std::string &filename, unsigned int width, unsigned int height)
 {
 	FreeImage_Initialise();
-	if (data != nullptr) delete[] data;
+	if (data != nullptr)
+		delete[] data;
 
-	//image format
+	// image format
 	FREE_IMAGE_FORMAT fif = FIF_UNKNOWN;
-	//pointer to the image, once loaded
-	FIBITMAP* dib(0);
+	// pointer to the image, once loaded
+	FIBITMAP *dib(0);
 
-	//check the file signature and deduce its format
+	// check the file signature and deduce its format
 	fif = FreeImage_GetFileType(filename.c_str(), 0);
-	if (fif == FIF_UNKNOWN) fif = FreeImage_GetFIFFromFilename(filename.c_str());
-	if (fif == FIF_UNKNOWN) return false;
+	if (fif == FIF_UNKNOWN)
+		fif = FreeImage_GetFIFFromFilename(filename.c_str());
+	if (fif == FIF_UNKNOWN)
+		return false;
 
-	//check that the plugin has reading capabilities and load the file
-	if (FreeImage_FIFSupportsReading(fif)) dib = FreeImage_Load(fif, filename.c_str());
-	if (!dib) return false;
-
+	// check that the plugin has reading capabilities and load the file
+	if (FreeImage_FIFSupportsReading(fif))
+		dib = FreeImage_Load(fif, filename.c_str());
+	if (!dib)
+		return false;
 
 	// Convert to RGBA float images
 	{
-		FIBITMAP* hOldImage = dib;
+		FIBITMAP *hOldImage = dib;
 		dib = FreeImage_ConvertToRGBAF(hOldImage); // ==> 4 channels
 		FreeImage_Unload(hOldImage);
 	}
 
-	//get the image width and height
+	// get the image width and height
 	w = FreeImage_GetWidth(dib);
 	h = FreeImage_GetHeight(dib);
 
 	// rescale to fit width and height
 	if (width != 0 && height != 0)
 	{
-		FIBITMAP* hOldImage = dib;
+		FIBITMAP *hOldImage = dib;
 		dib = FreeImage_Rescale(hOldImage, width, height, FILTER_CATMULLROM);
 		FreeImage_Unload(hOldImage);
 		w = width;
 		h = height;
 	}
 
-	//retrieve the image data
-	float* bitsF = (float*)FreeImage_GetBits(dib);
+	// retrieve the image data
+	float *bitsF = (float *)FreeImage_GetBits(dib);
 
-	//if this somehow one of these failed (they shouldn't), return failure
+	// if this somehow one of these failed (they shouldn't), return failure
 	if ((bitsF == 0) || (w == 0) || (h == 0))
 		return false;
 
@@ -302,34 +320,38 @@ bool FreeImageB::LoadImageFromFile(const std::string& filename, unsigned int wid
 			}
 		}
 	}
-	//memcpy(data, bits, sizeof(BYTE) * nChannels * w * h);
+	// memcpy(data, bits, sizeof(BYTE) * nChannels * w * h);
 
-	//Free FreeImage's copy of the data
+	// Free FreeImage's copy of the data
 	FreeImage_Unload(dib);
 
 	return true;
 }
 
-bool FreeImageB::SaveImageToFile(const std::string& filename, bool flipY)
+bool FreeImageB::SaveImageToFile(const std::string &filename, bool flipY)
 {
 	FREE_IMAGE_FORMAT fif = FIF_PNG;
-	FIBITMAP* dib = FreeImage_Allocate(w, h, 24);
+	FIBITMAP *dib = FreeImage_Allocate(w, h, 24);
 	RGBQUAD color;
-	for (unsigned int j = 0; j < h; j++) {
-		for (unsigned int i = 0; i < w; i++) {
-			unsigned char col[3] = { 0, 0, 0 };
+	for (unsigned int j = 0; j < h; j++)
+	{
+		for (unsigned int i = 0; i < w; i++)
+		{
+			unsigned char col[3] = {0, 0, 0};
 
 			for (unsigned int c = 0; c < nChannels && c < 3; ++c)
 			{
-				//col[c] = std::min(std::max(0, (int)(255.0f*data[nChannels * (w*j + i) + c])), 255);
+				// col[c] = std::min(std::max(0, (int)(255.0f*data[nChannels * (w*j + i) + c])), 255);
 				col[c] = data[nChannels * (w * j + i) + c];
 			}
 
 			color.rgbRed = col[0];
 			color.rgbGreen = col[1];
 			color.rgbBlue = col[2];
-			if (!flipY)	FreeImage_SetPixelColor(dib, i, h - 1 - j, &color);
-			else		FreeImage_SetPixelColor(dib, i, j, &color);
+			if (!flipY)
+				FreeImage_SetPixelColor(dib, i, h - 1 - j, &color);
+			else
+				FreeImage_SetPixelColor(dib, i, j, &color);
 		}
 	}
 	bool r = FreeImage_Save(fif, dib, filename.c_str(), 0) == 1;
@@ -337,70 +359,73 @@ bool FreeImageB::SaveImageToFile(const std::string& filename, bool flipY)
 	return r;
 }
 
-
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
-
 
 FreeImageU16F::FreeImageU16F() : w(0), h(0), nChannels(0), data(nullptr)
 {
 }
 
-FreeImageU16F::FreeImageU16F(const std::string& filename) : w(0), h(0), nChannels(0), data(nullptr)
+FreeImageU16F::FreeImageU16F(const std::string &filename) : w(0), h(0), nChannels(0), data(nullptr)
 {
 	LoadImageFromFile(filename);
 }
 
 FreeImageU16F::~FreeImageU16F()
 {
-	if (data != nullptr) delete[] data;
+	if (data != nullptr)
+		delete[] data;
 }
 
-bool FreeImageU16F::LoadImageFromFile(const std::string& filename, unsigned int width, unsigned int height)
+bool FreeImageU16F::LoadImageFromFile(const std::string &filename, unsigned int width, unsigned int height)
 {
 	FreeImage_Initialise();
-	if (data != nullptr) delete[] data;
+	if (data != nullptr)
+		delete[] data;
 
-	//image format
+	// image format
 	FREE_IMAGE_FORMAT fif = FIF_UNKNOWN;
-	//pointer to the image, once loaded
-	FIBITMAP* dib(0);
+	// pointer to the image, once loaded
+	FIBITMAP *dib(0);
 
-	//check the file signature and deduce its format
+	// check the file signature and deduce its format
 	fif = FreeImage_GetFileType(filename.c_str(), 0);
-	if (fif == FIF_UNKNOWN) fif = FreeImage_GetFIFFromFilename(filename.c_str());
-	if (fif == FIF_UNKNOWN) return false;
+	if (fif == FIF_UNKNOWN)
+		fif = FreeImage_GetFIFFromFilename(filename.c_str());
+	if (fif == FIF_UNKNOWN)
+		return false;
 
-	//check that the plugin has reading capabilities and load the file
-	if (FreeImage_FIFSupportsReading(fif)) dib = FreeImage_Load(fif, filename.c_str());
-	if (!dib) return false;
-
+	// check that the plugin has reading capabilities and load the file
+	if (FreeImage_FIFSupportsReading(fif))
+		dib = FreeImage_Load(fif, filename.c_str());
+	if (!dib)
+		return false;
 
 	// Convert to grey float images
 	{
-		FIBITMAP* hOldImage = dib;
+		FIBITMAP *hOldImage = dib;
 		dib = FreeImage_ConvertToFloat(hOldImage); // ==> 1 channel
 		FreeImage_Unload(hOldImage);
 	}
 
-	//get the image width and height
+	// get the image width and height
 	w = FreeImage_GetWidth(dib);
 	h = FreeImage_GetHeight(dib);
 
 	// rescale to fit width and height
 	if (width != 0 && height != 0)
 	{
-		FIBITMAP* hOldImage = dib;
+		FIBITMAP *hOldImage = dib;
 		dib = FreeImage_Rescale(hOldImage, width, height, FILTER_CATMULLROM);
 		FreeImage_Unload(hOldImage);
 		w = width;
 		h = height;
 	}
 
-	//retrieve the image data
-	float* bitsF = (float*)FreeImage_GetBits(dib);
+	// retrieve the image data
+	float *bitsF = (float *)FreeImage_GetBits(dib);
 
-	//if this somehow one of these failed (they shouldn't), return failure
+	// if this somehow one of these failed (they shouldn't), return failure
 	if ((bitsF == 0) || (w == 0) || (h == 0))
 		return false;
 
@@ -420,9 +445,39 @@ bool FreeImageU16F::LoadImageFromFile(const std::string& filename, unsigned int 
 		}
 	}
 
-	//Free FreeImage's copy of the data
+	// Free FreeImage's copy of the data
 	FreeImage_Unload(dib);
 
 	return true;
 }
 
+void ImageUtil::saveDepthMapToImage(float *map, int width, int height, std::string fileName, std::string message)
+{
+	FreeImage image(width, height, 1);
+	image.data = map;
+	std::cout << message << std::endl;
+	// Dominik: std::string fileName("./Output/" + fileName);
+	std::string pathToFile("../Output/" + fileName);
+	image.SaveDepthMapToFile(pathToFile + ".png");
+}
+
+void ImageUtil::saveNormalMapToImage(float *map, int width, int height, std::string fileName, std::string message)
+{
+	FreeImage image(width, height, 3);
+	image.data = map;
+	std::cout << message << std::endl;
+	// Dominik: std::string fileName("./Output/" + fileName);
+	std::string pathToFile("../Output/" + fileName);
+	image.SaveDepthMapToFile(pathToFile + ".png");
+}
+
+void DebugUtil::printFloatArray(float *map, int width, int height, std::string name) {
+	std::cout << "Printing " + name + ":" << std::endl;
+		for (unsigned int j = 0; j < height; j++)
+		{
+			for (unsigned int i = 0; i < width; i++)
+			{
+				std::cout << " " << map[(width * j + i)];
+			}
+		}
+}

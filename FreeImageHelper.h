@@ -76,3 +76,12 @@ struct FreeImageU16F {
 	unsigned int nChannels;
 	float* data;
 };
+
+namespace ImageUtil {
+	void saveDepthMapToImage(float *map, int width, int height, std::string fileName, std::string message);
+	void saveNormalMapToImage(float *map, int width, int height, std::string fileName, std::string message);
+}
+
+namespace DebugUtil {
+	void printFloatArray(float *map, int width, int height, std::string name);
+	}

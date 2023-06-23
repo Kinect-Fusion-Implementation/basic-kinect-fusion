@@ -6,7 +6,7 @@ class PointCloud
 private:
 	std::vector<Vector3f> m_points;
 	std::vector<Vector3f> m_normals;
-	PointCloud() {}
+	PointCloud() = delete;
 
 public:
 
@@ -88,11 +88,8 @@ public:
 		}
 
 		
-		FreeImage normalImage(width, height, 3);
-		normalImage.data = (float*) normalsTmp.data();
-		// Dominik: std::string fileName("./Output/NormalMap");
-		std::string fileName("../Output/NormalMap");
-		normalImage.SaveImageToFile(fileName + std::to_string(level) + ".png");
+		ImageUtil::saveNormalMapToImage((float*)normalsTmp.data(), width, height, std::string("NormalMap_") + std::to_string(level), "Saving normal map...");
+		
 		// We filter out measurements where either point or normal is invalid.
 		const unsigned nPoints = pointsTmp.size();
 		m_points.reserve(std::floor(float(nPoints)));
