@@ -16,8 +16,8 @@ int main()
 	VirtualSensor sensor;
 	sensor.init(filenameIn);
 
-	VoxelGrid grid(Vector3f(0.0f, 0.0f, 0.0f), 1200, 1200, 1200, 0.25f);
-	grid.voxelGridCenterToWorld(Vector3i(1, 1, 1));
+	VoxelGrid grid(Vector3f(-1.0f, -1.0f, -1.0f), 200, 200, 200, 0.25f);
+	Vector3f res = grid.voxelGridCenterToWorld(Vector3i(1, 1, 1));
 
 	while (sensor.processNextFrame())
 	{
