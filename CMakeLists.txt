@@ -47,12 +47,12 @@ set(HEADER_FILES
     VirtualSensor.h
     ICPOptimizer.h 
     FreeImageHelper.h
-    TSDFVoxelGrid.h
+    VoxelGrid.h
 )
 
 set(SOURCE_FILES 
     FreeImageHelper.cpp
-    TSDFVoxelGrid.cpp
+    VoxelGrid.cpp
 )
 
 link_directories(${FreeImage_LIBRARY_DIR})
