@@ -1,4 +1,5 @@
 #include "FreeImageHelper.h"
+#include "Configuration.h"
 
 #include <iostream>
 #include <cassert>
@@ -453,11 +454,13 @@ bool FreeImageU16F::LoadImageFromFile(const std::string &filename, unsigned int 
 
 void ImageUtil::saveDepthMapToImage(float *map, int width, int height, std::string fileName, std::string message)
 {
+	
+
 	FreeImage image(width, height, 1);
 	image.data = map;
 	std::cout << message << std::endl;
 	// Dominik: std::string fileName("./Output/" + fileName);
-	std::string pathToFile("../Output/" + fileName);
+	std::string pathToFile(Configuration::getOutputDirectory() + fileName);
 	image.SaveDepthMapToFile(pathToFile + ".png");
 }
 
@@ -467,7 +470,7 @@ void ImageUtil::saveNormalMapToImage(float *map, int width, int height, std::str
 	image.data = map;
 	std::cout << message << std::endl;
 	// Dominik: std::string fileName("./Output/" + fileName);
-	std::string pathToFile("../Output/" + fileName);
+	std::string pathToFile(Configuration::getOutputDirectory() + fileName);
 	image.SaveImageToFile(pathToFile + ".png");
 }
 

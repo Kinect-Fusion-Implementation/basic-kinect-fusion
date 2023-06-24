@@ -48,11 +48,13 @@ set(HEADER_FILES
     ICPOptimizer.h 
     FreeImageHelper.h
     VoxelGrid.h
+    Configuration.h
 )
 
 set(SOURCE_FILES 
     FreeImageHelper.cpp
     VoxelGrid.cpp
+    Configuration.cpp
 )
 
 link_directories(${FreeImage_LIBRARY_DIR})
