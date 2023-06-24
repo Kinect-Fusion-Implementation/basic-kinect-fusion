@@ -1,6 +1,7 @@
 #include "VoxelGrid.h"
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 
 VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, float scale) : m_gridOrigin(gridOrigin.x(), gridOrigin.y(), gridOrigin.z()), m_numberVoxelsWidth(numberVoxelsWidth), m_numberVoxelsDepth(numberVoxelsDepth), m_numberVoxelsHeight(numberVoxelsHeight), m_spatialVoxelScale(scale)
 {
@@ -29,23 +30,25 @@ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsign
 		for (size_t i = 0; i < m_numberVoxelsWidth; i++)
 		{
 			// Then iterate voxels to the right...
-			for (size_t j = 0; j < m_numberVoxelsHeight; i++)
+			for (size_t j = 0; j < m_numberVoxelsHeight; j++)
 			{
 				// First iterate in depth
-				for (size_t k = 0; k < m_numberVoxelsDepth; i++)
+				for (size_t k = 0; k < m_numberVoxelsDepth; k++)
 				{
+					std::cout << "Processing voxel: (" << i << ", " << j << ", " << k << ")" << std::endl;
 					Vector3i gridCoordinates(i, j, k);
 					Vector3f worldCoordinatesOfGridCell = voxelGridCenterToWorld(gridCoordinates);
-					Vector3f cameraCoordinatesOfGridCell = extrinsics.block(0,0,3,3) * worldCoordinatesOfGridCell + extrinsics.block(3,0,1,3);
+					Vector3f cameraCoordinatesOfGridCell = extrinsics.block<3,3>(0,0) * worldCoordinatesOfGridCell;
+					cameraCoordinatesOfGridCell += extrinsics.block<3,1>(0,3);
 					// voxel is behind the camera
 					if (cameraCoordinatesOfGridCell.z() < 0) {
-						break;
+						continue;
 					}
 					Vector3f pixelCoordinates = (intrinsics * cameraCoordinatesOfGridCell)/cameraCoordinatesOfGridCell.z();
 					float depthOfVoxelInCamera = cameraCoordinatesOfGridCell.z();
 					assert(pixelCoordinates.z() == 1);
 					if (pixelCoordinates.x() < 0 || pixelCoordinates.y() < 0 || pixelCoordinates.x() >= depthMapWidth || pixelCoordinates.y() >= depthMapHeight) {
-						break;
+						continue;
 					}
 					// find depth in depthmap that is stored in row major
 					float depth = depthMap[static_cast<int>(pixelCoordinates.x()) + static_cast<int>(pixelCoordinates.y()) * depthMapWidth];
@@ -54,6 +57,7 @@ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsign
 						// Our voxel is in front of the surface from the view of the camera
 						getVoxelData(i,j,k).freeSpace++;
 					}
+					
 					// There is an alternative formulation to this in the second paper...
 					float sdfEstimate = std::clamp(depth - depthOfVoxelInCamera, -truncation, truncation);
 					if(sdfEstimate > -truncation) {

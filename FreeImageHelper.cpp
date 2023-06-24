@@ -468,7 +468,7 @@ void ImageUtil::saveNormalMapToImage(float *map, int width, int height, std::str
 	std::cout << message << std::endl;
 	// Dominik: std::string fileName("./Output/" + fileName);
 	std::string pathToFile("../Output/" + fileName);
-	image.SaveDepthMapToFile(pathToFile + ".png");
+	image.SaveImageToFile(pathToFile + ".png");
 }
 
 void DebugUtil::printFloatArray(float *map, int width, int height, std::string name) {
