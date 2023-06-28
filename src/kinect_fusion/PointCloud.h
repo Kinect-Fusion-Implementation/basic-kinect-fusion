@@ -15,11 +15,14 @@ public:
 	 */
 	PointCloud(float* depthMap, const Matrix3f& depthIntrinsics, const Matrix4f& depthExtrinsics, const unsigned int width, const unsigned int height, int level, const unsigned int maxDistance = 10)
 	{
+		std::cout << "Constructing point cloud (vertex and normal map) for level " << level << "..." << std::endl;
+		std::cout << "Using Depth map dimensions: W: " << width << " H: " << height << std::endl;
 		// Get depth intrinsics.
-		float fovX = depthIntrinsics(0, 0);
-		float fovY = depthIntrinsics(1, 1);
-		float cX = depthIntrinsics(0, 2);
-		float cY = depthIntrinsics(1, 2);
+		float fovX = depthIntrinsics(0, 0) / std::pow(2, level);
+		float fovY = depthIntrinsics(1, 1) / std::pow(2, level);
+		float cX = depthIntrinsics(0, 2) / std::pow(2, level);
+		float cY = depthIntrinsics(1, 2)/ std::pow(2, level);
+		std::cout << "Intrinsics:\nfovX: " << fovX << " fovY: " << fovY << std::endl << "principal point (x, y):\n(" << cX << ", " << cY <<")" << std::endl;
 		const float maxDistanceHalved = maxDistance / 2.f;
 
 		// Compute inverse depth extrinsics.

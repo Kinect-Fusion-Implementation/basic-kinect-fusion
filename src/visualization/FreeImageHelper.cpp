@@ -1,5 +1,5 @@
 #include "FreeImageHelper.h"
-#include "Configuration.h"
+#include "../configuration/Configuration.h"
 
 #include <iostream>
 #include <cassert>

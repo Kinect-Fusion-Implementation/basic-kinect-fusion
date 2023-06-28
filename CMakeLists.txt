@@ -41,24 +41,32 @@ get_target_property(GLOG_DLL_PATH_RELEASE glog::glog IMPORTED_LOCATION_RELEASE)
 
 add_definitions("-D_DISABLE_EXTENDED_ALIGNED_STORAGE")
 
+set(SourceCode_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src CACHE PATH "Path to source code")
+set(CoreCode_DIR kinect_fusion CACHE PATH "Directory of the kinect fusion core code") 
+set(Configuration_DIR configuration CACHE PATH "Directory for configuration files") 
+set(Sensor_DIR sensor CACHE PATH "Directory for configuration files") 
+set(Visualization_DIR visualization CACHE PATH "Directory for configuration files") 
+
 set(HEADER_FILES 
-    Eigen.h 
-    PointCloud.h 
-    VirtualSensor.h
-    ICPOptimizer.h 
-    FreeImageHelper.h
-    VoxelGrid.h
-    Configuration.h
+    ${SourceCode_DIR}/${CoreCode_DIR}/Eigen.h 
+    ${SourceCode_DIR}/${CoreCode_DIR}/PointCloud.h 
+    ${SourceCode_DIR}/${CoreCode_DIR}/VoxelGrid.h
+    ${SourceCode_DIR}/${CoreCode_DIR}/ICPOptimizer.h 
+    ${SourceCode_DIR}/${Sensor_DIR}/VirtualSensor.h
+    ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.h
+    ${SourceCode_DIR}/${Configuration_DIR}/Configuration.h
 )
 
+
+
 set(SOURCE_FILES 
-    FreeImageHelper.cpp
-    VoxelGrid.cpp
-    Configuration.cpp
+    ${SourceCode_DIR}/${CoreCode_DIR}/VoxelGrid.cpp
+    ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.cpp
+    ${SourceCode_DIR}/${Configuration_DIR}/Configuration.cpp
 )
 
 link_directories(${FreeImage_LIBRARY_DIR})
-add_executable(kinect_fusion main.cpp ${HEADER_FILES} ${SOURCE_FILES})
+add_executable(kinect_fusion ${SourceCode_DIR}/main.cpp ${HEADER_FILES} ${SOURCE_FILES})
 target_link_libraries(kinect_fusion ceres freeimage Eigen3::Eigen)
 target_include_directories(kinect_fusion PUBLIC ${EIGEN3_INCLUDE_DIR} ${FreeImage_INCLUDE_DIR} ${Flann_INCLUDE_DIR})
 

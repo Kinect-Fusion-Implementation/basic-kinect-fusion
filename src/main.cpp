@@ -1,13 +1,13 @@
 #include <iostream>
 #include <fstream>
 
-#include "Eigen.h"
-#include "VirtualSensor.h"
-#include "ICPOptimizer.h"
-#include "PointCloud.h"
-#include "VoxelGrid.h"
-#include "PointCloudPyramid.h"
-#include "Configuration.h"
+#include "./sensor/VirtualSensor.h"
+#include "./kinect_fusion/Eigen.h"
+#include "./kinect_fusion/ICPOptimizer.h"
+#include "./kinect_fusion/PointCloud.h"
+#include "./kinect_fusion/VoxelGrid.h"
+#include "./kinect_fusion/PointCloudPyramid.h"
+#include "./configuration/Configuration.h"
 
 int main()
 {
