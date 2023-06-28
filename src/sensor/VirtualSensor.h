@@ -49,7 +49,7 @@ public:
 		m_colorExtrinsics.setIdentity();
 		m_depthExtrinsics.setIdentity();
 
-		m_depthFrame = new float[m_depthImageWidth * m_depthImageHeight];
+		m_depthFrame = new double[m_depthImageWidth * m_depthImageHeight];
 		for (unsigned int i = 0; i < m_depthImageWidth * m_depthImageHeight; ++i) m_depthFrame[i] = 0.5f;
 
 		m_colorFrame = new BYTE[4 * m_colorImageWidth * m_colorImageHeight];
@@ -108,16 +108,16 @@ public:
 	}
 
 	// get current depth data
-	float* getDepth() {
+	double* getDepth() {
 		return m_depthFrame;
 	}
 
 	// color camera info
-	Eigen::Matrix3f getColorIntrinsics() {
+	Eigen::Matrix3d getColorIntrinsics() {
 		return m_colorIntrinsics;
 	}
 
-	Eigen::Matrix4f getColorExtrinsics() {
+	Eigen::Matrix4d getColorExtrinsics() {
 		return m_colorExtrinsics;
 	}
 
@@ -130,11 +130,11 @@ public:
 	}
 
 	// depth (ir) camera info
-	Eigen::Matrix3f getDepthIntrinsics() {
+	Eigen::Matrix3d getDepthIntrinsics() {
 		return m_depthIntrinsics;
 	}
 
-	Eigen::Matrix4f getDepthExtrinsics() {
+	Eigen::Matrix4d getDepthExtrinsics() {
 		return m_depthExtrinsics;
 	}
 
@@ -147,7 +147,7 @@ public:
 	}
 
 	// get current trajectory transformation
-	Eigen::Matrix4f getTrajectory() {
+	Eigen::Matrix4d getTrajectory() {
 		return m_currentTrajectory;
 	}
 
@@ -174,7 +174,7 @@ private:
 		return true;
 	}
 
-	bool readTrajectoryFile(const std::string& filename, std::vector<Eigen::Matrix4f>& result,
+	bool readTrajectoryFile(const std::string& filename, std::vector<Eigen::Matrix4d>& result,
 	                        std::vector<double>& timestamps) {
 		std::ifstream file(filename, std::ios::in);
 		if (!file.is_open()) return false;
@@ -187,14 +187,14 @@ private:
 		while (file.good()) {
 			double timestamp;
 			file >> timestamp;
-			Eigen::Vector3f translation;
+			Eigen::Vector3d translation;
 			file >> translation.x() >> translation.y() >> translation.z();
 			Eigen::Quaternionf rot;
 			file >> rot;
 
-			Eigen::Matrix4f transf;
+			Eigen::Matrix4d transf;
 			transf.setIdentity();
-			transf.block<3, 3>(0, 0) = rot.toRotationMatrix();
+			transf.block<3, 3>(0, 0) = rot.toRotationMatrix().cast<double>();
 			transf.block<3, 1>(0, 3) = translation;
 
 			if (rot.norm() == 0) break;
@@ -216,19 +216,19 @@ private:
 	int m_increment;
 
 	// frame data
-	float* m_depthFrame;
+	double* m_depthFrame;
 	BYTE* m_colorFrame;
-	Eigen::Matrix4f m_currentTrajectory;
+	Eigen::Matrix4d m_currentTrajectory;
 
 	// color camera info
-	Eigen::Matrix3f m_colorIntrinsics;
-	Eigen::Matrix4f m_colorExtrinsics;
+	Eigen::Matrix3d m_colorIntrinsics;
+	Eigen::Matrix4d m_colorExtrinsics;
 	unsigned int m_colorImageWidth;
 	unsigned int m_colorImageHeight;
 
 	// depth (ir) camera info
-	Eigen::Matrix3f m_depthIntrinsics;
-	Eigen::Matrix4f m_depthExtrinsics;
+	Eigen::Matrix3d m_depthIntrinsics;
+	Eigen::Matrix4d m_depthExtrinsics;
 	unsigned int m_depthImageWidth;
 	unsigned int m_depthImageHeight;
 
@@ -242,6 +242,6 @@ private:
 	std::vector<double> m_colorImagesTimeStamps;
 
 	// trajectory
-	std::vector<Eigen::Matrix4f> m_trajectory;
+	std::vector<Eigen::Matrix4d> m_trajectory;
 	std::vector<double> m_trajectoryTimeStamps;
 };

@@ -2,12 +2,12 @@
 #include "Eigen.h"
 
 struct VoxelData {
-    float depthAverage = 0;
-    float weights = 0;
+    double depthAverage = 0;
+    double weights = 0;
     int freeSpace = 0;
 
     VoxelData() = delete;
-    VoxelData(float depthAverage, float weights): depthAverage(depthAverage), weights(weights), freeSpace(0){};
+    VoxelData(double depthAverage, double weights): depthAverage(depthAverage), weights(weights), freeSpace(0){};
 };
 
 /**
@@ -23,12 +23,9 @@ private:
     // Thus coordinate (i, j, k) corresponds to linearized index k + max_depth * j + max_depth * max_height * i
     std::vector<VoxelData> m_voxelGrid;
     // Grid is orientied along the world frame axes, but we want to define the area it covers freely by shifting its (0,0) location relative to the world frame
-    Vector3f m_gridOrigin;
+    Vector3d m_gridOrigin;
 
     /// Defines how many voxels along each direction the grid will have
-    unsigned int m_numberVoxelsWidth;
-    unsigned int m_numberVoxelsDepth;
-    unsigned int m_numberVoxelsHeight;
 
     // Defines the spatial extend each voxel will represent along each direction (side length of cube)
     float m_spatialVoxelScale;
@@ -36,18 +33,28 @@ private:
     VoxelGrid() = delete;
 
 public:
-    VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, float scale);
+    unsigned int m_numberVoxelsWidth;
+    unsigned int m_numberVoxelsDepth;
+    unsigned int m_numberVoxelsHeight;
+
+    
+    VoxelGrid(Vector3d gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, double scale);
 
     /**
-     * Transforms coordinates in the voxel grids (grid indices along each direction (w, d, h)) into a corresponding point in world coordinates.
+     * Transforms coordinates in the voxel grids (grid indices along each direction (width, height, depth)) into a corresponding point in world coordinates.
      * Note that this point corresponds to the center of the voxel grid cell corresponding to the index.
      */
-    Vector3f voxelGridCenterToWorld(Vector3i gridCell);
+    Vector3d voxelGridCenterToWorld(Vector3i gridCell);
 
     /**
      * Updates TSDF Voxel grid using Volumetric Fusion algorithm
     */
-   void updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, float* depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight, float truncation);
+   void updateTSDF(Matrix4d extrinsics, Matrix3d intrinsics, double* depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight, double truncation);
 
-   VoxelData& getVoxelData(unsigned int i, unsigned int j, unsigned int k);
+
+    /**
+     * Provides the storage index of grid coordinates ((w)idth, (h)eight, (d)epth)
+     * We store our sdf data in depth > height > width
+    */
+   VoxelData& getVoxelData(unsigned int w, unsigned int h, unsigned int d);
 };

@@ -8,6 +8,7 @@
 #include "./kinect_fusion/VoxelGrid.h"
 #include "./kinect_fusion/PointCloudPyramid.h"
 #include "./configuration/Configuration.h"
+#include "./visualization/MarchingCubes.h"
 
 int main()
 {
@@ -15,14 +16,23 @@ int main()
 	VirtualSensor sensor;
 	sensor.init(Configuration::getDataSetPath());
 
-	VoxelGrid grid(Vector3f(-1.0f, -1.0f, -1.0f), 200, 200, 200, 0.25f);
-	Vector3f res = grid.voxelGridCenterToWorld(Vector3i(1, 1, 1));
+	int roomWidhtCentimeter = 300;
+	int roomHeightCentimeter = 300;
+	int roomDepthCentimeter = 300;
+	double voxelsPerCentimeter = 1;
+	double scale = 1/voxelsPerCentimeter;
+	int numberVoxelsWidth = roomWidhtCentimeter * voxelsPerCentimeter; 
+	int numberVoxelsHeight = roomHeightCentimeter * voxelsPerCentimeter;
+	int numberVoxelsDepth = roomDepthCentimeter * voxelsPerCentimeter;
+	VoxelGrid grid(Vector3d(-1.5, -1.5, -1.5), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, scale);
+	Vector3d res = grid.voxelGridCenterToWorld(Vector3i(1, 1, 1));
 
 	while (sensor.processNextFrame())
 	{
-		// grid.updateTSDF(sensor.getDepthExtrinsics(), sensor.getDepthIntrinsics(), sensor.getDepth(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 10);
-		float *depth = sensor.getDepth();
+		double *depth = sensor.getDepth();
+		grid.updateTSDF(sensor.getDepthExtrinsics(), sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 10.0f);
 
+		/*
 		float sigmaS(2.0);
 		float sigmaR(2.0);
 		std::cout << "Using sigmaS: " << sigmaS << std::endl;
@@ -39,7 +49,9 @@ int main()
 		const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
 
 		break;
+		*/
 	}
+	run_marching_cubes(grid);
 
 	return result;
 }

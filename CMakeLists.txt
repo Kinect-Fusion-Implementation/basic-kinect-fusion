@@ -54,10 +54,10 @@ set(HEADER_FILES
     ${SourceCode_DIR}/${CoreCode_DIR}/ICPOptimizer.h 
     ${SourceCode_DIR}/${Sensor_DIR}/VirtualSensor.h
     ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.h
+    ${SourceCode_DIR}/${Visualization_DIR}/MarchingCubes.h
+    ${SourceCode_DIR}/${Visualization_DIR}/SimpleMesh.h
     ${SourceCode_DIR}/${Configuration_DIR}/Configuration.h
 )
-
-
 
 set(SOURCE_FILES 
     ${SourceCode_DIR}/${CoreCode_DIR}/VoxelGrid.cpp
