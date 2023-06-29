@@ -2,12 +2,12 @@
 #include "Eigen.h"
 
 struct VoxelData {
-    double depthAverage = 0;
-    double weights = 0;
+    float depthAverage = 0;
+    float weights = 0;
     int freeSpace = 0;
 
     VoxelData() = delete;
-    VoxelData(double depthAverage, double weights): depthAverage(depthAverage), weights(weights), freeSpace(0){};
+    VoxelData(float depthAverage, float weights): depthAverage(depthAverage), weights(weights), freeSpace(0){};
 };
 
 /**
@@ -23,7 +23,7 @@ private:
     // Thus coordinate (i, j, k) corresponds to linearized index k + max_depth * j + max_depth * max_height * i
     std::vector<VoxelData> m_voxelGrid;
     // Grid is orientied along the world frame axes, but we want to define the area it covers freely by shifting its (0,0) location relative to the world frame
-    Vector3d m_gridOrigin;
+    Vector3f m_gridOrigin;
 
     /// Defines how many voxels along each direction the grid will have
 
@@ -38,18 +38,18 @@ public:
     unsigned int m_numberVoxelsHeight;
 
     
-    VoxelGrid(Vector3d gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, double scale);
+    VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, float scale);
 
     /**
      * Transforms coordinates in the voxel grids (grid indices along each direction (width, height, depth)) into a corresponding point in world coordinates.
      * Note that this point corresponds to the center of the voxel grid cell corresponding to the index.
      */
-    Vector3d voxelGridCenterToWorld(Vector3i gridCell);
+    Vector3f voxelGridCenterToWorld(Vector3i gridCell);
 
     /**
      * Updates TSDF Voxel grid using Volumetric Fusion algorithm
     */
-   void updateTSDF(Matrix4d extrinsics, Matrix3d intrinsics, double* depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight, double truncation);
+   void updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, float* depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight, float truncation);
 
 
     /**

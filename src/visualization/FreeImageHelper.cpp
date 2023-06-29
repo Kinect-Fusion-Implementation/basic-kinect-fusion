@@ -454,8 +454,6 @@ bool FreeImageU16F::LoadImageFromFile(const std::string &filename, unsigned int 
 
 void ImageUtil::saveDepthMapToImage(float *map, int width, int height, std::string fileName, std::string message)
 {
-	
-
 	FreeImage image(width, height, 1);
 	image.data = map;
 	std::cout << message << std::endl;

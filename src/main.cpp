@@ -19,20 +19,19 @@ int main()
 	int roomWidhtCentimeter = 300;
 	int roomHeightCentimeter = 300;
 	int roomDepthCentimeter = 300;
-	double voxelsPerCentimeter = 1;
-	double scale = 1/voxelsPerCentimeter;
+	float voxelsPerCentimeter = 2;
+	float scale = 1/voxelsPerCentimeter;
 	int numberVoxelsWidth = roomWidhtCentimeter * voxelsPerCentimeter; 
 	int numberVoxelsHeight = roomHeightCentimeter * voxelsPerCentimeter;
 	int numberVoxelsDepth = roomDepthCentimeter * voxelsPerCentimeter;
-	VoxelGrid grid(Vector3d(-1.5, -1.5, -1.5), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, scale);
-	Vector3d res = grid.voxelGridCenterToWorld(Vector3i(1, 1, 1));
+	VoxelGrid grid(Vector3f(-150.0, -150.0, -150.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, scale);
+	Vector3f res = grid.voxelGridCenterToWorld(Vector3i(1, 1, 1));
 
 	while (sensor.processNextFrame())
 	{
-		double *depth = sensor.getDepth();
+		float *depth = sensor.getDepth();
 		grid.updateTSDF(sensor.getDepthExtrinsics(), sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 10.0f);
 
-		/*
 		float sigmaS(2.0);
 		float sigmaR(2.0);
 		std::cout << "Using sigmaS: " << sigmaS << std::endl;
@@ -49,7 +48,6 @@ int main()
 		const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
 
 		break;
-		*/
 	}
 	run_marching_cubes(grid);
 

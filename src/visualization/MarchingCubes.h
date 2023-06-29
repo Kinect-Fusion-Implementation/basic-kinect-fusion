@@ -7,14 +7,14 @@
 struct MC_Triangle
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-	Vector3d p[3];
+	Vector3f p[3];
 };
 
 struct MC_Gridcell
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-	Vector3d p[8];
-	double val[8];
+	Vector3f p[8];
+	float val[8];
 };
 
 int edgeTable[256] = {
@@ -314,7 +314,7 @@ int triTable[256][16] = {
 Linearly interpolate the position where an isosurface cuts
 an edge between two vertices, each with their own scalar value
 */
-Vector3d VertexInterp(double isolevel, const Vector3d &p1, const Vector3d &p2, double valp1, double valp2)
+Vector3f VertexInterp(float isolevel, const Vector3f &p1, const Vector3f &p2, float valp1, float valp2)
 {
 	// TODO: implement the linear interpolant
 	// Assume that the function value at 'p1' is 'valp1' and the function value at 'p2' is 'valp2'.
@@ -330,7 +330,7 @@ Vector3d VertexInterp(double isolevel, const Vector3d &p1, const Vector3d &p2, d
 	//  /
 	// x
 	// f(p1) = valp1
-	double lambda = abs(valp1 - isolevel) / abs(valp1 - valp2);
+	float lambda = abs(valp1 - isolevel) / abs(valp1 - valp2);
 	return (lambda * p2 + (1 - lambda) * p1);
 }
 
@@ -342,11 +342,11 @@ will be loaded up with the vertices at most 5 triangular facets.
 0 will be returned if the grid cell is either totally above
 or totally below the isolevel.
 */
-int Polygonise(MC_Gridcell grid, double isolevel, MC_Triangle *triangles)
+int Polygonise(MC_Gridcell grid, float isolevel, MC_Triangle *triangles)
 {
 	int ntriang;
 	int cubeindex;
-	Vector3d vertlist[12];
+	Vector3f vertlist[12];
 
 	cubeindex = 0;
 	if (grid.val[0] < isolevel)
@@ -409,39 +409,39 @@ int Polygonise(MC_Gridcell grid, double isolevel, MC_Triangle *triangles)
 	return ntriang;
 }
 
-bool processGridCell(VoxelGrid &tsdfGrid, const int x, const int y, const int z, double iso, SimpleMesh *mesh)
+bool processGridCell(VoxelGrid &tsdfGrid, const int x, const int y, const int z, float iso, SimpleMesh *mesh)
 {
 	MC_Gridcell cell;
 
-	Vector3d tmp;
+	Vector3f tmp;
 
 	// cell corners
 	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x + 1, y, z));
-	cell.p[0] = Vector3d(tmp[0], tmp[1], tmp[2]);
+	cell.p[0] = Vector3f(tmp[0], tmp[1], tmp[2]);
 	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x, y, z));
-	cell.p[1] = Vector3d(tmp[0], tmp[1], tmp[2]);
+	cell.p[1] = Vector3f(tmp[0], tmp[1], tmp[2]);
 	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x, y + 1, z));
-	cell.p[2] = Vector3d(tmp[0], tmp[1], tmp[2]);
+	cell.p[2] = Vector3f(tmp[0], tmp[1], tmp[2]);
 	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x + 1, y + 1, z));
-	cell.p[3] = Vector3d(tmp[0], tmp[1], tmp[2]);
+	cell.p[3] = Vector3f(tmp[0], tmp[1], tmp[2]);
 	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x + 1, y, z + 1));
-	cell.p[4] = Vector3d(tmp[0], tmp[1], tmp[2]);
+	cell.p[4] = Vector3f(tmp[0], tmp[1], tmp[2]);
 	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x, y, z + 1));
-	cell.p[5] = Vector3d(tmp[0], tmp[1], tmp[2]);
+	cell.p[5] = Vector3f(tmp[0], tmp[1], tmp[2]);
 	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x, y + 1, z + 1));
-	cell.p[6] = Vector3d(tmp[0], tmp[1], tmp[2]);
+	cell.p[6] = Vector3f(tmp[0], tmp[1], tmp[2]);
 	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x + 1, y + 1, z + 1));
-	cell.p[7] = Vector3d(tmp[0], tmp[1], tmp[2]);
+	cell.p[7] = Vector3f(tmp[0], tmp[1], tmp[2]);
 
 	// cell corner values
-	cell.val[0] = (double)tsdfGrid.getVoxelData(x + 1, y, z).depthAverage;
-	cell.val[1] = (double)tsdfGrid.getVoxelData(x, y, z).depthAverage;
-	cell.val[2] = (double)tsdfGrid.getVoxelData(x, y + 1, z).depthAverage;
-	cell.val[3] = (double)tsdfGrid.getVoxelData(x + 1, y + 1, z).depthAverage;
-	cell.val[4] = (double)tsdfGrid.getVoxelData(x + 1, y, z + 1).depthAverage;
-	cell.val[5] = (double)tsdfGrid.getVoxelData(x, y, z + 1).depthAverage;
-	cell.val[6] = (double)tsdfGrid.getVoxelData(x, y + 1, z + 1).depthAverage;
-	cell.val[7] = (double)tsdfGrid.getVoxelData(x + 1, y + 1, z + 1).depthAverage;
+	cell.val[0] = (float)tsdfGrid.getVoxelData(x + 1, y, z).depthAverage;
+	cell.val[1] = (float)tsdfGrid.getVoxelData(x, y, z).depthAverage;
+	cell.val[2] = (float)tsdfGrid.getVoxelData(x, y + 1, z).depthAverage;
+	cell.val[3] = (float)tsdfGrid.getVoxelData(x + 1, y + 1, z).depthAverage;
+	cell.val[4] = (float)tsdfGrid.getVoxelData(x + 1, y, z + 1).depthAverage;
+	cell.val[5] = (float)tsdfGrid.getVoxelData(x, y, z + 1).depthAverage;
+	cell.val[6] = (float)tsdfGrid.getVoxelData(x, y + 1, z + 1).depthAverage;
+	cell.val[7] = (float)tsdfGrid.getVoxelData(x + 1, y + 1, z + 1).depthAverage;
 
 	MC_Triangle tris[6];
 	int numTris = Polygonise(cell, iso, tris);
@@ -483,7 +483,7 @@ void run_marching_cubes(VoxelGrid &tsdfVoxelGrid)
 		}
 	}
 
-	std::string filenameOut = Configuration::getOutputDirectory() + "kinect_mesh.off";
+	std::string filenameOut = Configuration::getOutputDirectory() + "/kinect_mesh.off";
 	// write mesh to file
 	if (!mesh.WriteMesh(filenameOut))
 	{
