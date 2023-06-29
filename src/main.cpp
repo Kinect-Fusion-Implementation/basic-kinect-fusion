@@ -16,38 +16,42 @@ int main()
 	VirtualSensor sensor;
 	sensor.init(Configuration::getDataSetPath());
 
-	int roomWidhtCentimeter = 300;
-	int roomHeightCentimeter = 300;
-	int roomDepthCentimeter = 300;
-	float voxelsPerCentimeter = 2;
-	float scale = 1/voxelsPerCentimeter;
-	int numberVoxelsWidth = roomWidhtCentimeter * voxelsPerCentimeter; 
-	int numberVoxelsHeight = roomHeightCentimeter * voxelsPerCentimeter;
-	int numberVoxelsDepth = roomDepthCentimeter * voxelsPerCentimeter;
-	VoxelGrid grid(Vector3f(-150.0, -150.0, -150.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, scale);
-	Vector3f res = grid.voxelGridCenterToWorld(Vector3i(1, 1, 1));
-
+	int roomWidhtMeter = 4;
+	int roomHeightMeter = 4;
+	int roomDepthMeter = 4;
+	float voxelsPerCentimeter = 50;
+	float scale = 1 / voxelsPerCentimeter;
+	int numberVoxelsWidth = roomWidhtMeter * voxelsPerCentimeter;
+	int numberVoxelsHeight = roomHeightMeter * voxelsPerCentimeter;
+	int numberVoxelsDepth = roomDepthMeter * voxelsPerCentimeter;
+	VoxelGrid grid(Vector3f(-2.0, -2.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, scale);
+	int idx = 0;
 	while (sensor.processNextFrame())
 	{
 		float *depth = sensor.getDepth();
 		grid.updateTSDF(sensor.getDepthExtrinsics(), sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 10.0f);
+		idx++;
+		if (idx > 200) {
+			break;
+		}
+		/*
+			float sigmaS(2.0);
+			float sigmaR(2.0);
+			std::cout << "Using sigmaS: " << sigmaS << std::endl;
+			std::cout << "Using sigmaR: " << sigmaR << std::endl;
 
-		float sigmaS(2.0);
-		float sigmaR(2.0);
-		std::cout << "Using sigmaS: " << sigmaS << std::endl;
-		std::cout << "Using sigmaR: " << sigmaR << std::endl;
+			// Number of subsampling levels
+			const unsigned levels = 2;
+			// Size of smoothing window
+			const unsigned windowSize = 21;
+			// Size of subsampling window
+			const unsigned blockSize = 3;
 
-		// Number of subsampling levels
-		const unsigned levels = 2;
-		// Size of smoothing window
-		const unsigned windowSize = 21;
-		// Size of subsampling window
-		const unsigned blockSize = 3;
+			PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthExtrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
+			const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
 
-		PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthExtrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
-		const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
-
-		break;
+			break;
+			*/
 	}
 	run_marching_cubes(grid);
 
