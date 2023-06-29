@@ -11,27 +11,33 @@
 typedef unsigned char BYTE;
 
 // reads sensor files according to https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
-class VirtualSensor {
+class VirtualSensor
+{
 public:
+	VirtualSensor() : m_currentIdx(-1), m_increment(1), m_depthFrame(nullptr), m_colorFrame(nullptr) {}
 
-	VirtualSensor() : m_currentIdx(-1), m_increment(1), m_depthFrame(nullptr), m_colorFrame(nullptr) { }
-
-	~VirtualSensor() {
+	~VirtualSensor()
+	{
 		SAFE_DELETE_ARRAY(m_depthFrame);
 		SAFE_DELETE_ARRAY(m_colorFrame);
 	}
 
-	bool init(const std::string& datasetDir) {
+	bool init(const std::string &datasetDir)
+	{
 		m_baseDir = datasetDir;
 
 		// Read filename lists
-		if (!readFileList(datasetDir + "depth.txt", m_filenameDepthImages, m_depthImagesTimeStamps)) return false;
-		if (!readFileList(datasetDir + "rgb.txt", m_filenameColorImages, m_colorImagesTimeStamps)) return false;
+		if (!readFileList(datasetDir + "depth.txt", m_filenameDepthImages, m_depthImagesTimeStamps))
+			return false;
+		if (!readFileList(datasetDir + "rgb.txt", m_filenameColorImages, m_colorImagesTimeStamps))
+			return false;
 
 		// Read tracking
-		if (!readTrajectoryFile(datasetDir + "groundtruth.txt", m_trajectory, m_trajectoryTimeStamps)) return false;
+		if (!readTrajectoryFile(datasetDir + "groundtruth.txt", m_trajectory, m_trajectoryTimeStamps))
+			return false;
 
-		if (m_filenameDepthImages.size() != m_filenameColorImages.size()) return false;
+		if (m_filenameDepthImages.size() != m_filenameColorImages.size())
+			return false;
 
 		// Image resolutions
 		m_colorImageWidth = 640;
@@ -49,21 +55,27 @@ public:
 		m_colorExtrinsics.setIdentity();
 		m_depthExtrinsics.setIdentity();
 
-		m_depthFrame = new double[m_depthImageWidth * m_depthImageHeight];
-		for (unsigned int i = 0; i < m_depthImageWidth * m_depthImageHeight; ++i) m_depthFrame[i] = 0.5f;
+		m_depthFrame = new float[m_depthImageWidth * m_depthImageHeight];
+		for (unsigned int i = 0; i < m_depthImageWidth * m_depthImageHeight; ++i)
+			m_depthFrame[i] = 0.5f;
 
 		m_colorFrame = new BYTE[4 * m_colorImageWidth * m_colorImageHeight];
-		for (unsigned int i = 0; i < 4 * m_colorImageWidth * m_colorImageHeight; ++i) m_colorFrame[i] = 255;
+		for (unsigned int i = 0; i < 4 * m_colorImageWidth * m_colorImageHeight; ++i)
+			m_colorFrame[i] = 255;
 
 		m_currentIdx = -1;
 		return true;
 	}
 
-	bool processNextFrame() {
-		if (m_currentIdx == -1) m_currentIdx = 0;
-		else m_currentIdx += m_increment;
+	bool processNextFrame()
+	{
+		if (m_currentIdx == -1)
+			m_currentIdx = 0;
+		else
+			m_currentIdx += m_increment;
 
-		if ((unsigned int)m_currentIdx >= (unsigned int)m_filenameColorImages.size()) return false;
+		if ((unsigned int)m_currentIdx >= (unsigned int)m_filenameColorImages.size())
+			return false;
 
 		std::cout << "ProcessNextFrame [" << m_currentIdx << " | " << m_filenameColorImages.size() << "]" << std::endl;
 
@@ -75,7 +87,8 @@ public:
 		FreeImageU16F dImage;
 		dImage.LoadImageFromFile(m_baseDir + m_filenameDepthImages[m_currentIdx]);
 
-		for (unsigned int i = 0; i < m_depthImageWidth * m_depthImageHeight; ++i) {
+		for (unsigned int i = 0; i < m_depthImageWidth * m_depthImageHeight; ++i)
+		{
 			if (dImage.data[i] == 0)
 				m_depthFrame[i] = MINF;
 			else
@@ -86,9 +99,11 @@ public:
 		double timestamp = m_depthImagesTimeStamps[m_currentIdx];
 		double min = std::numeric_limits<double>::max();
 		int idx = 0;
-		for (unsigned int i = 0; i < m_trajectory.size(); ++i) {
+		for (unsigned int i = 0; i < m_trajectory.size(); ++i)
+		{
 			double d = abs(m_trajectoryTimeStamps[i] - timestamp);
-			if (min > d) {
+			if (min > d)
+			{
 				min = d;
 				idx = i;
 			}
@@ -98,75 +113,91 @@ public:
 		return true;
 	}
 
-	unsigned int getCurrentFrameCnt() {
+	unsigned int getCurrentFrameCnt()
+	{
 		return (unsigned int)m_currentIdx;
 	}
 
 	// get current color data
-	BYTE* getColorRGBX() {
+	BYTE *getColorRGBX()
+	{
 		return m_colorFrame;
 	}
 
 	// get current depth data
-	double* getDepth() {
+	float *getDepth()
+	{
 		return m_depthFrame;
 	}
 
 	// color camera info
-	Eigen::Matrix3d getColorIntrinsics() {
+	Eigen::Matrix3f getColorIntrinsics()
+	{
 		return m_colorIntrinsics;
 	}
 
-	Eigen::Matrix4d getColorExtrinsics() {
+	Eigen::Matrix4f getColorExtrinsics()
+	{
 		return m_colorExtrinsics;
 	}
 
-	unsigned int getColorImageWidth() {
+	unsigned int getColorImageWidth()
+	{
 		return m_colorImageWidth;
 	}
 
-	unsigned int getColorImageHeight() {
+	unsigned int getColorImageHeight()
+	{
 		return m_colorImageHeight;
 	}
 
 	// depth (ir) camera info
-	Eigen::Matrix3d getDepthIntrinsics() {
+	Eigen::Matrix3f getDepthIntrinsics()
+	{
 		return m_depthIntrinsics;
 	}
 
-	Eigen::Matrix4d getDepthExtrinsics() {
+	Eigen::Matrix4f getDepthExtrinsics()
+	{
 		return m_depthExtrinsics;
 	}
 
-	unsigned int getDepthImageWidth() {
+	unsigned int getDepthImageWidth()
+	{
 		return m_depthImageWidth;
 	}
 
-	unsigned int getDepthImageHeight() {
+	unsigned int getDepthImageHeight()
+	{
 		return m_depthImageHeight;
 	}
 
 	// get current trajectory transformation
-	Eigen::Matrix4d getTrajectory() {
+	Eigen::Matrix4f getTrajectory()
+	{
 		return m_currentTrajectory;
 	}
 
 private:
-	bool readFileList(const std::string& filename, std::vector<std::string>& result, std::vector<double>& timestamps) {
+	bool readFileList(const std::string &filename, std::vector<std::string> &result, std::vector<double> &timestamps)
+	{
 		std::ifstream fileDepthList(filename, std::ios::in);
-		if (!fileDepthList.is_open()) return false;
+		if (!fileDepthList.is_open())
+			return false;
 		result.clear();
 		timestamps.clear();
 		std::string dump;
 		std::getline(fileDepthList, dump);
 		std::getline(fileDepthList, dump);
 		std::getline(fileDepthList, dump);
-		while (fileDepthList.good()) {
+		while (fileDepthList.good())
+		{
 			double timestamp;
 			fileDepthList >> timestamp;
 			std::string filename;
 			fileDepthList >> filename;
-			if (filename == "") break;
+			if (filename == "")
+				break;
 			timestamps.push_back(timestamp);
 			result.push_back(filename);
 		}
@@ -174,30 +205,34 @@ private:
 		return true;
 	}
 
-	bool readTrajectoryFile(const std::string& filename, std::vector<Eigen::Matrix4d>& result,
-	                        std::vector<double>& timestamps) {
+	bool readTrajectoryFile(const std::string &filename, std::vector<Eigen::Matrix4f> &result,
+							std::vector<double> &timestamps)
+	{
 		std::ifstream file(filename, std::ios::in);
-		if (!file.is_open()) return false;
+		if (!file.is_open())
+			return false;
 		result.clear();
 		std::string dump;
 		std::getline(file, dump);
 		std::getline(file, dump);
 		std::getline(file, dump);
 
-		while (file.good()) {
+		while (file.good())
+		{
 			double timestamp;
 			file >> timestamp;
-			Eigen::Vector3d translation;
+			Eigen::Vector3f translation;
 			file >> translation.x() >> translation.y() >> translation.z();
 			Eigen::Quaternionf rot;
 			file >> rot;
 
-			Eigen::Matrix4d transf;
+			Eigen::Matrix4f transf;
 			transf.setIdentity();
-			transf.block<3, 3>(0, 0) = rot.toRotationMatrix().cast<double>();
+			transf.block<3, 3>(0, 0) = rot.toRotationMatrix();
 			transf.block<3, 1>(0, 3) = translation;
 
-			if (rot.norm() == 0) break;
+			if (rot.norm() == 0)
+				break;
 
 			transf = transf.inverse().eval();
 
@@ -216,19 +251,19 @@ private:
 	int m_increment;
 
 	// frame data
-	double* m_depthFrame;
-	BYTE* m_colorFrame;
-	Eigen::Matrix4d m_currentTrajectory;
+	float *m_depthFrame;
+	BYTE *m_colorFrame;
+	Eigen::Matrix4f m_currentTrajectory;
 
 	// color camera info
-	Eigen::Matrix3d m_colorIntrinsics;
-	Eigen::Matrix4d m_colorExtrinsics;
+	Eigen::Matrix3f m_colorIntrinsics;
+	Eigen::Matrix4f m_colorExtrinsics;
 	unsigned int m_colorImageWidth;
 	unsigned int m_colorImageHeight;
 
 	// depth (ir) camera info
-	Eigen::Matrix3d m_depthIntrinsics;
-	Eigen::Matrix4d m_depthExtrinsics;
+	Eigen::Matrix3f m_depthIntrinsics;
+	Eigen::Matrix4f m_depthExtrinsics;
 	unsigned int m_depthImageWidth;
 	unsigned int m_depthImageHeight;
 
@@ -242,6 +277,6 @@ private:
 	std::vector<double> m_colorImagesTimeStamps;
 
 	// trajectory
-	std::vector<Eigen::Matrix4d> m_trajectory;
+	std::vector<Eigen::Matrix4f> m_trajectory;
 	std::vector<double> m_trajectoryTimeStamps;
 };
