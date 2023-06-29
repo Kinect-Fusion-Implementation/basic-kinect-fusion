@@ -7,7 +7,10 @@ std::string Configuration::getDataSetPath()
     {
         dataSetPath = "../../cv-data/RGBD-Dataset-Freiburg1/";
     }
-
+    if (USERNAME == "helga")
+    {
+        dataSetPath = "../../../cv-data/RGBD-Dataset-Freiburg1/";
+    }
     return dataSetPath;
 }
 
@@ -18,6 +21,9 @@ std::string Configuration::getOutputDirectory()
     {
         outputDirectory = "./Output/";
     }
-
+    if (USERNAME == "helga")
+    {
+        outputDirectory = "../Output/";
+    }
     return outputDirectory;
 }
