@@ -42,8 +42,7 @@ public:
         // Iterate over levels for pointClouds | We assume that levels match for both pyramids
         for (unsigned int i = 0; i < sourcePointClouds.size(); i++) {
             for (unsigned int k = 0; k < m_iterations_per_level[i]; k++)
-                std::vector<std::tuple<Vector3f, Vector3f, Vector3f>> correspondences = findCorrespondances(sourcePointClouds[i], targetPointClouds[i], previousToCurrentFrame, globalToPreviousFrame, m_cameraMatrix);
-                previousToCurrentFrame = pointToPlaneICP(correspondences, globalToPreviousFrame, previousToCurrentFrame);
+                previousToCurrentFrame = pointToPlaneICP(findCorrespondances(sourcePointClouds[i], targetPointClouds[i], previousToCurrentFrame, globalToPreviousFrame, m_cameraMatrix), globalToPreviousFrame, previousToCurrentFrame);
         }
 
         return globalToPreviousFrame * previousToCurrentFrame;
