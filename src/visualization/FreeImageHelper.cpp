@@ -1,4 +1,5 @@
 #include "FreeImageHelper.h"
+#include "../configuration/Configuration.h"
 
 #include <iostream>
 #include <cassert>
@@ -457,7 +458,7 @@ void ImageUtil::saveDepthMapToImage(float *map, int width, int height, std::stri
 	image.data = map;
 	std::cout << message << std::endl;
 	// Dominik: std::string fileName("./Output/" + fileName);
-	std::string pathToFile("../Output/" + fileName);
+	std::string pathToFile(Configuration::getOutputDirectory() + fileName);
 	image.SaveDepthMapToFile(pathToFile + ".png");
 }
 
@@ -467,8 +468,8 @@ void ImageUtil::saveNormalMapToImage(float *map, int width, int height, std::str
 	image.data = map;
 	std::cout << message << std::endl;
 	// Dominik: std::string fileName("./Output/" + fileName);
-	std::string pathToFile("../Output/" + fileName);
-	image.SaveDepthMapToFile(pathToFile + ".png");
+	std::string pathToFile(Configuration::getOutputDirectory() + fileName);
+	image.SaveImageToFile(pathToFile + ".png");
 }
 
 void DebugUtil::printFloatArray(float *map, int width, int height, std::string name) {

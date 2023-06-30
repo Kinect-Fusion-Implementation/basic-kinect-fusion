@@ -9,17 +9,20 @@ private:
 	PointCloud() = delete;
 
 public:
-
 	/**
 	 * represents the vertex and point map, relatively to the camera (in the camera frame)
 	 */
-	PointCloud(float* depthMap, const Matrix3f& depthIntrinsics, const Matrix4f& depthExtrinsics, const unsigned int width, const unsigned int height, int level, const unsigned int maxDistance = 10)
+	PointCloud(float *depthMap, const Matrix3f &depthIntrinsics, const Matrix4f &depthExtrinsics, const unsigned int width, const unsigned int height, int level, const unsigned int maxDistance = 10)
 	{
+		std::cout << "Constructing point cloud (vertex and normal map) for level " << level << "..." << std::endl;
+		std::cout << "Using Depth map dimensions: W: " << width << " H: " << height << std::endl;
 		// Get depth intrinsics.
-		float fovX = depthIntrinsics(0, 0);
-		float fovY = depthIntrinsics(1, 1);
-		float cX = depthIntrinsics(0, 2);
-		float cY = depthIntrinsics(1, 2);
+		float fovX = depthIntrinsics(0, 0) / std::pow(2, level);
+		float fovY = depthIntrinsics(1, 1) / std::pow(2, level);
+		float cX = depthIntrinsics(0, 2) / std::pow(2, level);
+		float cY = depthIntrinsics(1, 2) / std::pow(2, level);
+		std::cout << "Intrinsics:\nfovX: " << fovX << " fovY: " << fovY << std::endl
+				  << "principal point (x, y):\n(" << cX << ", " << cY << ")" << std::endl;
 		const float maxDistanceHalved = maxDistance / 2.f;
 
 		// Compute inverse depth extrinsics.
@@ -87,9 +90,8 @@ public:
 			normalsTmp[(width - 1) + v * width] = Vector3f(MINF, MINF, MINF);
 		}
 
-		
-		ImageUtil::saveNormalMapToImage((float*)normalsTmp.data(), width, height, std::string("NormalMap_") + std::to_string(level), "Saving normal map...");
-		
+		ImageUtil::saveNormalMapToImage((float *)normalsTmp.data(), width, height, std::string("NormalMap_") + std::to_string(level), "Saving normal map...");
+
 		// We filter out measurements where either point or normal is invalid.
 		const unsigned nPoints = pointsTmp.size();
 		m_points.reserve(std::floor(float(nPoints)));
@@ -97,8 +99,8 @@ public:
 
 		for (int i = 0; i < nPoints; i++)
 		{
-			const auto& point = pointsTmp[i];
-			const auto& normal = normalsTmp[i];
+			const auto &point = pointsTmp[i];
+			const auto &normal = normalsTmp[i];
 
 			if (point.allFinite() && normal.allFinite())
 			{
@@ -108,22 +110,22 @@ public:
 		}
 	}
 
-	std::vector<Vector3f>& getPoints()
+	std::vector<Vector3f> &getPoints()
 	{
 		return m_points;
 	}
 
-	const std::vector<Vector3f>& getPoints() const
+	const std::vector<Vector3f> &getPoints() const
 	{
 		return m_points;
 	}
 
-	std::vector<Vector3f>& getNormals()
+	std::vector<Vector3f> &getNormals()
 	{
 		return m_normals;
 	}
 
-	const std::vector<Vector3f>& getNormals() const
+	const std::vector<Vector3f> &getNormals() const
 	{
 		return m_normals;
 	}

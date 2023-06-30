@@ -58,7 +58,6 @@ public:
 
 		// Compute smoothed depth map
 		computeSmoothedDepthMap(sigmaR, sigmaS);
-
 		ImageUtil::saveDepthMapToImage(m_smoothedDepthMap, m_width, m_height, "SmoothedDepthMap", "Saving smoothed depth map...");
 
 		// Setup of pyramid
