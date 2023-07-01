@@ -29,6 +29,8 @@ int main()
 	while (sensor.processNextFrame())
 	{
 		float *depth = sensor.getDepth();
+		// Trajectory:	 	world -> view space (Extrinsics)
+		// InvTrajectory:	view -> world space (Pose)
 		std::cout << "Trajectory:\n" << sensor.getTrajectory() << std::endl;
 		// Somehow all of this code does not work with the GT trajectory (extrinsics)
 		grid.updateTSDF(sensor.getDepthExtrinsics(), sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 10.0f);

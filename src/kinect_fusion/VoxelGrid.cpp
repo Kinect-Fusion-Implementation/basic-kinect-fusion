@@ -63,7 +63,7 @@ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsign
 					// There is an alternative formulation to this in the second paper...
 					// This will be >0 for points between camera and surface and < 0 for points behind the surface
 					float sdfEstimate = std::clamp(depth - distanceOfVoxelToCamera, -truncation, truncation);
-					if(sdfEstimate > -truncation) {
+					if(std::abs(sdfEstimate) < truncation) {
 						VoxelData& voxel = getVoxelData(w,h,d);
 						// Just like in the paper
 						float newWeight = 1;
