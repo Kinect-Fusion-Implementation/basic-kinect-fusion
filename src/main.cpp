@@ -16,24 +16,27 @@ int main()
 	VirtualSensor sensor;
 	sensor.init(Configuration::getDataSetPath());
 
-	int roomWidhtMeter = 4;
-	int roomHeightMeter = 4;
-	int roomDepthMeter = 4;
-	float voxelsPerCentimeter = 50;
-	float scale = 1 / voxelsPerCentimeter;
-	int numberVoxelsWidth = roomWidhtMeter * voxelsPerCentimeter;
-	int numberVoxelsHeight = roomHeightMeter * voxelsPerCentimeter;
-	int numberVoxelsDepth = roomDepthMeter * voxelsPerCentimeter;
-	VoxelGrid grid(Vector3f(-2.0, -2.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, scale);
+	int roomWidhtMeter = 6;
+	int roomHeightMeter = 6;
+	int roomDepthMeter = 6;
+	float voxelsPerMeter = 40;
+	float scale = 1 / voxelsPerMeter;
+	int numberVoxelsWidth = roomWidhtMeter * voxelsPerMeter;
+	int numberVoxelsHeight = roomHeightMeter * voxelsPerMeter;
+	int numberVoxelsDepth = roomDepthMeter * voxelsPerMeter;
+	VoxelGrid grid(Vector3f(-3.0, -3.0, -3.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, scale);
 	int idx = 0;
 	while (sensor.processNextFrame())
 	{
 		float *depth = sensor.getDepth();
+		std::cout << "Trajectory:\n" << sensor.getTrajectory() << std::endl;
+		// Somehow all of this code does not work with the GT trajectory (extrinsics)
 		grid.updateTSDF(sensor.getDepthExtrinsics(), sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 10.0f);
 		idx++;
 		if (idx > 200) {
 			break;
 		}
+		run_marching_cubes(grid, idx);
 		/*
 			float sigmaS(2.0);
 			float sigmaR(2.0);
@@ -47,13 +50,14 @@ int main()
 			// Size of subsampling window
 			const unsigned blockSize = 3;
 
-			PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthExtrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
+
+			// Somehow all of this code does not work with the GT trajectory (extrinsics)
+			PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
 			const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
 
 			break;
 			*/
 	}
-	run_marching_cubes(grid);
 
 	return result;
 }
