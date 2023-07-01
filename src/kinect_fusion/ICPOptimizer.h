@@ -1,348 +1,204 @@
 #pragma once
 
-// The Google logging library (GLOG), used in Ceres, has a conflict with Windows defined constants. This definitions prevents GLOG to use the same constants
-#define GLOG_NO_ABBREVIATED_SEVERITIES
-
-#include <ceres/ceres.h>
-#include <ceres/rotation.h>
+#include "Eigen.h"
 #include "PointCloud.h"
+#include "PointCloudPyramid.h"
+#include "vector"
+#include "tuple"
 
-#include <iostream>
+//TODO: Implement correspondance search between Vertecies
+//TODO: Implement Point to Plane ICP with given corresponances
 
-/**
- * Helper methods for writing Ceres cost functions.
- */
-template <typename T>
-static inline void fillVector(const Vector3f &input, T *output)
-{
-    output[0] = T(input[0]);
-    output[1] = T(input[1]);
-    output[2] = T(input[2]);
-}
+class ICPOptimizer {
+public:
+    ICPOptimizer(Eigen::Matrix<float, 3, 4>& cameraMatrix, float vertex_diff_threshold, float normal_diff_threshold, std::vector<int> iterations_per_level) {
+        // Initialized with Camera Matrix and threshold values. These should stay the same for all iterations and frames
+        m_cameraMatrix = cameraMatrix;
 
-/**
- * Pose increment is only an interface to the underlying array (in constructor, no copy
- * of the input array is made).
- * Important: Input array needs to have a size of at least 6.
- */
-template <typename T>
-class PoseIncrement
-{
+        // Sets threshold values for vertex and normal difference in correspondance search
+        m_vertex_diff_threshold = vertex_diff_threshold;
+        m_normal_diff_threshold = normal_diff_threshold;
+
+        // Sets number of iterations per level
+        m_iterations_per_level = iterations_per_level;
+    }
+    void setCameraMatrix(Eigen::Matrix<float, 3, 4>& cameraMatrix) {
+        m_cameraMatrix = cameraMatrix;
+    }
+    void setVertex_diff_threshold(float vertex_diff_threshold) {
+        m_vertex_diff_threshold = vertex_diff_threshold;
+    }
+    void setNormal_diff_threshold(float normal_diff_threshold) {
+        m_normal_diff_threshold = normal_diff_threshold;
+    }
+
+    // We expect the vertecies of both pointclouds to have 3d coordinates with respect to the camera frame and not the global frame
+    Matrix4f optimize(PointCloudPyramid& sourcePyramid, PointCloudPyramid& targetPyramid, Matrix4f globalToPreviousFrame) {
+        // source -> PointCloud of k-th frame, target -> PointCloud of k-1-th frame
+        std::vector<PointCloud> sourcePointClouds = sourcePyramid.getPointClouds();
+        std::vector<PointCloud> targetPointClouds = targetPyramid.getPointClouds();
+        // Initialize frame transformation with identity matrix
+        Matrix4f previousToCurrentFrame = Matrix4f::Identity();
+        // Iterate over levels for pointClouds | We assume that levels match for both pyramids
+        for (unsigned int i = 0; i < sourcePointClouds.size(); i++) {
+            for (unsigned int k = 0; k < m_iterations_per_level[i]; k++)
+                previousToCurrentFrame = pointToPlaneICP(findCorrespondances(sourcePointClouds[i], targetPointClouds[i], previousToCurrentFrame, globalToPreviousFrame, m_cameraMatrix), globalToPreviousFrame, previousToCurrentFrame);
+        }
+
+        return globalToPreviousFrame * previousToCurrentFrame;
+    }
+
 private:
-    T *m_array;
+    Eigen::Matrix<float, 3, 4> m_cameraMatrix;
+    // Threshold values for correspondance search
+    float m_vertex_diff_threshold;
+    float m_normal_diff_threshold;
+    // Number of iterations per level
+    std::vector<int> m_iterations_per_level;
 
-public:
-    explicit PoseIncrement(T *const array) : m_array{array} {}
+    // ---- Point to Plane ICP ----
 
-    void setZero()
-    {
-        for (int i = 0; i < 6; ++i)
-            m_array[i] = T(0);
-    }
+    Matrix4f pointToPlaneICP(const std::vector<std::tuple<Vector3f, Vector3f, Vector3f>>& correspondences, const Matrix4f& globalToPreviousFrame, const Matrix4f& previousToCurrentFrame) {
+        Matrix4f output;
+        output.setIdentity();
 
-    T *getData() const
-    {
-        return m_array;
-    }
+        // designMatrix contains sum of A_t * A matrices
+        Eigen::Matrix<float, 6, 6> designMatrix;
+        designMatrix.setZero();
 
-    /**
-     * Applies the pose increment onto the input point and produces transformed output point.
-     * Important: The memory for both 3D points (input and output) needs to be reserved (i.e. on the stack)
-     * beforehand).
-     */
-    void apply(T *inputPoint, T *outputPoint) const
-    {
-        // pose[0,1,2] is angle-axis rotation.
-        // pose[3,4,5] is translation.
-        const T *rotation = m_array;
-        const T *translation = m_array + 3;
+        // designVector contains sum of A_t * b vectors
+        Eigen::Matrix<float, 6, 1> designVector;
+        designVector.setZero();
 
-        T temp[3];
-        ceres::AngleAxisRotatePoint(rotation, inputPoint, temp);
+        for (unsigned int i = 0; i < correspondences.size(); i++) {
+            // SourceVertex -> V_k, TargetVertex -> V_k-1, TargetNormal -> N_k-1
+            Vector3f sourceVertex = std::get<0>(correspondences[i]);
+            Vector3f targetVertex = std::get<1>(correspondences[i]);
+            Vector3f targetNormal = std::get<2>(correspondences[i]);
 
-        outputPoint[0] = temp[0] + translation[0];
-        outputPoint[1] = temp[1] + translation[1];
-        outputPoint[2] = temp[2] + translation[2];
-    }
+            // Build summand matrix and vector for current correspondance
+            std::tuple<Eigen::Matrix<float, 6, 6>, Eigen::Matrix<float, 6, 1>> system = buildSummandMatrixAndVector(
+                    sourceVertex, targetVertex, targetNormal);
+            designMatrix += std::get<0>(system);
+            designVector += std::get<1>(system);
 
-    /**
-     * Converts the pose increment with rotation in SO3 notation and translation as 3D vector into
-     * transformation 4x4 matrix.
-     */
-    static Matrix4f convertToMatrix(const PoseIncrement<double> &poseIncrement)
-    {
-        // pose[0,1,2] is angle-axis rotation.
-        // pose[3,4,5] is translation.
-        double *pose = poseIncrement.getData();
-        double *rotation = pose;
-        double *translation = pose + 3;
-
-        // Convert the rotation from SO3 to matrix notation (with column-major storage).
-        double rotationMatrix[9];
-        ceres::AngleAxisToRotationMatrix(rotation, rotationMatrix);
-
-        // Create the 4x4 transformation matrix.
-        Matrix4f matrix;
-        matrix.setIdentity();
-        matrix(0, 0) = float(rotationMatrix[0]);
-        matrix(0, 1) = float(rotationMatrix[3]);
-        matrix(0, 2) = float(rotationMatrix[6]);
-        matrix(0, 3) = float(translation[0]);
-        matrix(1, 0) = float(rotationMatrix[1]);
-        matrix(1, 1) = float(rotationMatrix[4]);
-        matrix(1, 2) = float(rotationMatrix[7]);
-        matrix(1, 3) = float(translation[1]);
-        matrix(2, 0) = float(rotationMatrix[2]);
-        matrix(2, 1) = float(rotationMatrix[5]);
-        matrix(2, 2) = float(rotationMatrix[8]);
-        matrix(2, 3) = float(translation[2]);
-
-        return matrix;
-    }
-};
-
-class PointToPlaneConstraint
-{
-public:
-    PointToPlaneConstraint(const Vector3f &sourcePoint, const Vector3f &targetPoint, const Vector3f &targetNormal, const float weight) : m_sourcePoint{sourcePoint},
-                                                                                                                                         m_targetPoint{targetPoint},
-                                                                                                                                         m_targetNormal{targetNormal},
-                                                                                                                                         m_weight{weight}
-    {
-    }
-
-    template <typename T>
-    bool operator()(const T *const pose, T *residuals) const
-    {
-        // TODO: Implemented the point-to-plane cost function.
-        // The resulting 1D residual should be stored in residuals array. To apply the pose
-        // increment (pose parameters) to the source point, you can use the PoseIncrement
-        // class.
-        // Important: Ceres automatically squares the cost function.
-
-        T source[3];
-        fillVector(m_sourcePoint, source);
-        T transformed_source[3];
-        apply(source, transformed_source, pose);
-        residuals[0] = T(m_targetNormal[0]) * (transformed_source[0] - T(m_targetPoint[0])) + T(m_targetNormal[1]) * (transformed_source[1] - T(m_targetPoint[1])) + T(m_targetNormal[2]) * (transformed_source[2] - T(m_targetPoint[2]));
-
-        return true;
-    }
-
-    static ceres::CostFunction *create(const Vector3f &sourcePoint, const Vector3f &targetPoint, const Vector3f &targetNormal, const float weight)
-    {
-        return new ceres::AutoDiffCostFunction<PointToPlaneConstraint, 1, 6>(
-            new PointToPlaneConstraint(sourcePoint, targetPoint, targetNormal, weight));
-    }
-
-    template <typename T>
-    static void apply(T *inputPoint, T *outputPoint, const T *pose)
-    {
-        // pose[0,1,2] is angle-axis rotation.
-        // pose[3,4,5] is translation.
-        const T *rotation = pose;
-
-        const T *translation = pose + 3;
-
-        T temp[3];
-        ceres::AngleAxisRotatePoint(rotation, inputPoint, temp);
-
-        outputPoint[0] = temp[0] + translation[0];
-        outputPoint[1] = temp[1] + translation[1];
-        outputPoint[2] = temp[2] + translation[2];
-    }
-
-protected:
-    const Vector3f m_sourcePoint;
-    const Vector3f m_targetPoint;
-    const Vector3f m_targetNormal;
-    const float m_weight;
-    const float LAMBDA = 1.0f;
-};
-
-/**
- * ICP optimizer - Abstract Base Class
- */
-class ICPOptimizer
-{
-protected:
-    bool m_bUsePointToPlaneConstraints;
-    unsigned m_nIterations;
-
-public:
-    ICPOptimizer() : m_nIterations{20}
-    {
-    }
-
-    void setNbOfIterations(unsigned nIterations)
-    {
-        m_nIterations = nIterations;
-    }
-
-    virtual void estimatePose(const PointCloud &source, const PointCloud &target, Matrix4f &initialPose) = 0;
-
-protected:
-    std::vector<Vector3f> transformPoints(const std::vector<Vector3f> &sourcePoints, const Matrix4f &pose)
-    {
-        std::vector<Vector3f> transformedPoints;
-        transformedPoints.reserve(sourcePoints.size());
-
-        const auto rotation = pose.block(0, 0, 3, 3);
-        const auto translation = pose.block(0, 3, 3, 1);
-
-        for (const auto &point : sourcePoints)
-        {
-            transformedPoints.push_back(rotation * point + translation);
         }
-
-        return transformedPoints;
+        // solution -> (alpha, beta, gamma, tx, ty, tz)
+        Eigen::Matrix<float, 6, 1> solution = (designMatrix.llt()).solve(designVector);
+        output <<  1, solution(0), -solution(2), solution(3),
+                    -solution(0), 1, solution(1), solution(4),
+                    solution(2), -solution(1), 1, solution(5),
+                    0, 0, 0, 1;
+        return output;
     }
 
-    std::vector<Vector3f> transformNormals(const std::vector<Vector3f> &sourceNormals, const Matrix4f &pose)
-    {
-        std::vector<Vector3f> transformedNormals;
-        transformedNormals.reserve(sourceNormals.size());
+    std::tuple<Eigen::Matrix<float, 6, 6>, Eigen::Matrix<float, 6, 1>> buildSummandMatrixAndVector(Vector3f& sourceVertex, Vector3f& targetVertex, Vector3f& targetNormal) {
+        // Returns the solution of the system of equations for point to plane ICP for one summand of the cost function
+        // SourceVertex -> V_k, TargetVertex -> V_k-1, TargetNormal -> N_k-1
 
-        const auto rotation = pose.block(0, 0, 3, 3);
+        // solution -> (alpha, beta, gamma, tx, ty, tz)
+        Eigen::Matrix<float, 6, 1> solution;
+        solution.setZero();
+        // G contains  the skew-symmetric matrix form of the sourceVertex
+        Eigen::Matrix<float, 3, 6> G;
+        G <<    0, -sourceVertex(2), sourceVertex(1), 1, 0, 0,
+                sourceVertex(2), 0, -sourceVertex(0), 0, 1, 0,
+                -sourceVertex(1), sourceVertex(0), 0, 0, 0, 1;
 
-        for (const auto &normal : sourceNormals)
-        {
-            transformedNormals.push_back(rotation.inverse().transpose() * normal);
-        }
+        // A contains the dot product of the skew-symmetric matrix form of the sourceVertex and the targetNormal and is the matrix we are optimizing over
+        Eigen::Matrix<float, 6, 1> A_t = G.transpose() * targetNormal;
+        Eigen::Matrix<float, 6, 6> A_tA = A_t * A_t.transpose();
+        // b contains the dot product of the targetNormal and the difference between the targetVertex and the sourceVertex
+        Eigen::Matrix<float, 6, 1> b = A_t * (targetNormal.transpose() * (targetVertex - sourceVertex));
 
-        return transformedNormals;
+        return std::make_tuple(A_tA, b);
     }
 
-    // TODO: Add matches to signature
-    void pruneCorrespondences(const std::vector<Vector3f> &sourceNormals, const std::vector<Vector3f> &targetNormals)
-    {
-        const unsigned nPoints = sourceNormals.size();
-    }
-};
 
-/**
- * ICP optimizer - using linear least-squares for optimization.
- */
-class LinearICPOptimizer : public ICPOptimizer
-{
-public:
-    LinearICPOptimizer() {}
 
-    virtual void estimatePose(const PointCloud &source, const PointCloud &target, Matrix4f &initialPose) override
-    {
+    // ---- Correspondance Search ----
 
-        // The initial estimate can be given as an argument.
-        Matrix4f estimatedPose = initialPose;
+    // Source -> PointCloud of k-th frame, Target -> PointCloud of k-1-th frame | Rendered PointCloud at k-1-th position
+    // FrameToFrameTransformation -> Transformation from k-th to k-1-th frame
+    std::vector<std::tuple<Vector3f, Vector3f, Vector3f>> findCorrespondances(const PointCloud& sourcePointCloud, const PointCloud& targetPointCloud, const Matrix4f& frameToFrameTransformation, const Matrix4f& globalToPrevFrameTransform, const Eigen::Matrix<float, 3, 4>& cameraMatrix) {
+        // Find correspondances between sourcePointCloud and targetPointCloud
+        // Return correspondences i.e. V_k, N_k, V_k-1
+        std::vector<std::tuple<Vector3f, Vector3f, Vector3f>> correspondences;
 
-        for (int i = 0; i < m_nIterations; ++i)
-        {
-            // Compute the matches.
-            std::cout << "Matching points ..." << std::endl;
-            clock_t begin = clock();
+        // We will later compute the transformation matrix between the k-th and k-1-th frame which is why we need to iterate over the sourePointCloud to avoid computing inverse transformations
+        for (unsigned int i = 0; i < sourcePointCloud.getPoints().size(); i++) {
+            // Vertex -> V_k, Normal -> N_k
+            Vector3f sourceVertex = sourcePointCloud.getPoints()[i];
+            Vector3f normalVertex = sourcePointCloud.getNormals()[i];
 
-            auto transformedPoints = transformPoints(source.getPoints(), estimatedPose);
-            auto transformedNormals = transformNormals(source.getNormals(), estimatedPose);
-
-            pruneCorrespondences(transformedNormals, target.getNormals());
-
-            clock_t end = clock();
-            double elapsedSecs = double(end - begin) / CLOCKS_PER_SEC;
-            std::cout << "Completed in " << elapsedSecs << " seconds." << std::endl;
-
-            std::vector<Vector3f> sourcePoints;
-            std::vector<Vector3f> targetPoints;
-
-            // Add all matches to the sourcePoints and targetPoints vector,
-            // so that the sourcePoints[i] matches targetPoints[i]. For every source point,
-            // the matches vector holds the index of the matching target point.
-            // TODO: Add matches
-            for (int j = 0; j < transformedPoints.size(); j++)
-            {
-                /*
-                const auto& match = matches[j];
-                if (match.idx >= 0) {
-                    sourcePoints.push_back(transformedPoints[j]);
-                    targetPoints.push_back(target.getPoints()[match.idx]);
-                }
-                */
+            std::tuple<Vector3f, Vector3f> correspondingPoint = findCorrespondingPoint(sourceVertex, normalVertex, targetPointCloud, frameToFrameTransformation, globalToPrevFrameTransform, cameraMatrix);
+            if (std::get<0>(correspondingPoint) != Vector3f::Zero() && std::get<1>(correspondingPoint) != Vector3f::Zero()) {
+                // Add v_k, v_k-1, n_k-1 to correspondences
+                correspondences.push_back(std::make_tuple(sourceVertex, std::get<0>(correspondingPoint), std::get<1>(correspondingPoint)));
             }
 
-            // Estimate the new pose
-            estimatedPose = estimatePosePointToPlane(sourcePoints, targetPoints, target.getNormals()) * estimatedPose;
-
-            std::cout << "Optimization iteration done." << std::endl;
         }
-
-        // Store result
-        initialPose = estimatedPose;
+        return correspondences;
     }
 
-private:
-    Matrix4f estimatePosePointToPlane(const std::vector<Vector3f> &sourcePoints, const std::vector<Vector3f> &targetPoints, const std::vector<Vector3f> &targetNormals)
-    {
-        const unsigned nPoints = sourcePoints.size();
+    // PyramidLevel -> Used to determine the size of the projected window
+    std::tuple<Vector3f, Vector3f> findCorrespondingPoint(const Vector3f& sourceVertex, const Vector3f& sourceNormal, const PointCloud& targetPointCloud, const Matrix4f& frameToFrameTransformation, const Matrix4f& globalToPrevFrameTransform, const Eigen::Matrix<float, 3, 4>& cameraMatrix) {
+        // Find corresponding point in sourcePointCloud for given targetVertex
+        // Return corresponding point and normal
+        Vector3f correspondingPoint = Vector3f::Zero();
+        Vector3f correspondingNormal = Vector3f::Zero();
 
-        // Build the system Ax = b
-        MatrixXf A = MatrixXf::Zero(4 * nPoints, 6);
-        VectorXf b = VectorXf::Zero(4 * nPoints);
+        Vector3f transformedSourceVector = cameraMatrix * frameToFrameTransformation * homogenize_3d(sourceVertex);
+        Vector2f projectedSourceVector = dehomogenize_2d(transformedSourceVector);
 
-        for (unsigned i = 0; i < nPoints; i++)
-        {
-            const auto &s = sourcePoints[i];
-            const auto &d = targetPoints[i];
-            const auto &n = targetNormals[i];
+        // FIXME: Change Lookup for Source Vertex i.e. second coordinate with row major
 
-            // TODO: Add the point-to-plane constraints to the system
-            // a's
-            A(i * 4, 0) = n.z() * s.y() - n.y() * s.z();
-            A(i * 4, 1) = n.x() * s.z() - n.z() * s.x();
-            A(i * 4, 2) = n.y() * s.x() - n.x() * s.y();
-            // n's
-            A(i * 4, 3) = n.x();
-            A(i * 4, 4) = n.y();
-            A(i * 4, 5) = n.z();
-            // b
-            b(i * 4) = n.x() * d.x() + n.y() * d.y() + n.z() * d.z() - n.x() * s.x() - n.y() * s.y() - n.z() * s.z();
+        Vector3f targetVertex = targetPointCloud.getPoints()[projectedSourceVector[0]];
+        Vector3f targetNormal = targetPointCloud.getNormals()[projectedSourceVector[0]];
 
-            // TODO: Add the point-to-point constraints to the system
-            // Translation part is identity
-            A(i * 4 + 1, 0) = 0;
-            A(i * 4 + 1, 1) = s.z();
-            A(i * 4 + 1, 2) = -s.y();
-            A(i * 4 + 2, 0) = -s.z();
-            A(i * 4 + 2, 1) = 0;
-            A(i * 4 + 2, 2) = s.x();
-            A(i * 4 + 3, 0) = s.y();
-            A(i * 4 + 3, 1) = -s.x();
-            A(i * 4 + 3, 2) = 0;
-            A.block<3, 3>(i * 4 + 1, 3).setIdentity();
-            // b TODO: Check whether sign is in correct orientation
-            b(i * 4 + 1) = d.x() - s.x();
-            b(i * 4 + 2) = d.y() - s.y();
-            b(i * 4 + 3) = d.z() - s.z();
-            // TODO: Optionally, apply a higher weight to point-to-plane correspondences
+        // Check whether targetVertex is valid i.e. not MINF (M(u) = 1)
+        if (targetVertex[0] == MINF || targetVertex[1] == MINF || targetVertex[2] == MINF || targetNormal[0] == MINF || targetNormal[1] == MINF || targetNormal[2] == MINF) {
+            return std::make_tuple(correspondingPoint, correspondingNormal);
         }
 
-        // TODO: Solve the system
-        VectorXf x(6);
-        BDCSVD<MatrixXf> svd = BDCSVD<MatrixXf>(A, ComputeThinU | ComputeThinV);
-        x = svd.solve(b);
+        Vector4f targetVertexGlobal = globalToPrevFrameTransform * homogenize_3d(targetNormal);
+        // T_g,k = T_g,k-1 * T_k-1,k
+        Vector4f sourceVertexGlobal = globalToPrevFrameTransform * frameToFrameTransformation *
+                homogenize_3d(sourceVertex);
 
-        float alpha = x(0), beta = x(1), gamma = x(2);
+        // Check if the distance between the sourceVertex and the targetVertex is too large (||T_g,k * v_k - T_g,k-1 * v_k-1|| > epsilon_d)
+        if ((dehomogenize_3d(targetVertexGlobal) - dehomogenize_3d(sourceVertexGlobal)).norm() <= m_vertex_diff_threshold) {
+            return std::make_tuple(correspondingPoint, correspondingNormal);
+        }
 
-        // Build the pose matrix
-        Matrix3f rotation = AngleAxisf(alpha, Vector3f::UnitX()).toRotationMatrix() *
-                            AngleAxisf(beta, Vector3f::UnitY()).toRotationMatrix() *
-                            AngleAxisf(gamma, Vector3f::UnitZ()).toRotationMatrix();
+        // Extract rotation of Frame k-1 to Frame k | (We don't to take the global rotation into account since we are only interested in the rotation between the two frames)
+        Matrix3f rotation = (frameToFrameTransformation).block<3, 3>(0, 0);
+        if (targetNormal.dot(rotation * sourceNormal) <= m_normal_diff_threshold) {
+            return std::make_tuple(correspondingPoint, correspondingNormal);
+        }
 
-        Vector3f translation = x.tail(3);
+        correspondingPoint = sourceVertex;
+        correspondingNormal = sourceNormal;
 
-        // TODO: Build the pose matrix using the rotation and translation matrices
-        Matrix4f estimatedPose = Matrix4f::Identity();
-        estimatedPose.block<3, 3>(0, 0) = rotation;
-
-        estimatedPose.block<3, 1>(0, 3) = translation;
-        std::cout << estimatedPose << std::endl;
-        return estimatedPose;
+        return std::make_tuple(correspondingPoint, correspondingNormal);
     }
+
+    // Helper methods for homogenization and dehomogenization in 2D and 3D
+    Vector4f homogenize_3d(const Vector3f& point) {
+        return Vector4f(point[0], point[1], point[2], 1.0f);
+    }
+
+    Vector3f homogenize_2d(const Vector2f& point) {
+        return Vector3f(point[0], point[1], 1.0f);
+    }
+
+    Vector3f dehomogenize_3d(const Vector4f& point) {
+        return Vector3f(point[0] / point[3], point[1] / point[3], point[2] / point[3]);
+    }
+
+    Vector2f dehomogenize_2d(const Vector3f point) {
+        return Vector2f(point[0] / point[2], point[1] / point[2]);
+    }
+
+
 };

@@ -29,6 +29,10 @@
 #define M_PI 3.14159265359
 #endif
 
+#ifndef M_2_SQRTPI
+#define M_2_SQRTPI 1.77245385091
+#endif
+
 
 #include <Eigen/Dense>
 #include <Eigen/StdVector>
