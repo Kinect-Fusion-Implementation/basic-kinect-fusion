@@ -6,14 +6,18 @@
 #include "vector"
 #include "tuple"
 
-//TODO: Implement correspondance search between Vertecies
-//TODO: Implement Point to Plane ICP with given corresponances
+//TODO: Implement PointToPoint ICP with given corresponances
+//TODO: Implement other correspondance search method (No second downsampling)
+//TODO: Implement Symmetric ICP
+
 
 class ICPOptimizer {
 public:
-    ICPOptimizer(Eigen::Matrix<float, 3, 4>& cameraMatrix, float vertex_diff_threshold, float normal_diff_threshold, std::vector<int> iterations_per_level) {
+    ICPOptimizer(VirtualSensor& virtualSensor, float vertex_diff_threshold, float normal_diff_threshold, std::vector<int>& iterations_per_level) {
         // Initialized with Camera Matrix and threshold values. These should stay the same for all iterations and frames
-        m_cameraMatrix = cameraMatrix;
+        m_cameraMatrix =  virtualSensor.getDepthIntrinsics();
+        m_width = virtualSensor.getDepthImageWidth();
+        m_height = virtualSensor.getDepthImageHeight();
 
         // Sets threshold values for vertex and normal difference in correspondance search
         m_vertex_diff_threshold = vertex_diff_threshold;
@@ -22,9 +26,7 @@ public:
         // Sets number of iterations per level
         m_iterations_per_level = iterations_per_level;
     }
-    void setCameraMatrix(Eigen::Matrix<float, 3, 4>& cameraMatrix) {
-        m_cameraMatrix = cameraMatrix;
-    }
+
     void setVertex_diff_threshold(float vertex_diff_threshold) {
         m_vertex_diff_threshold = vertex_diff_threshold;
     }
@@ -33,23 +35,30 @@ public:
     }
 
     // We expect the vertecies of both pointclouds to have 3d coordinates with respect to the camera frame and not the global frame
-    Matrix4f optimize(PointCloudPyramid& sourcePyramid, PointCloudPyramid& targetPyramid, Matrix4f globalToPreviousFrame) {
+    Matrix4f optimize(PointCloudPyramid& sourcePyramid, PointCloudPyramid& targetPyramid, const Matrix4f& globalToPreviousFrame) {
         // source -> PointCloud of k-th frame, target -> PointCloud of k-1-th frame
         std::vector<PointCloud> sourcePointClouds = sourcePyramid.getPointClouds();
         std::vector<PointCloud> targetPointClouds = targetPyramid.getPointClouds();
         // Initialize frame transformation with identity matrix
-        Matrix4f previousToCurrentFrame = Matrix4f::Identity();
+        Matrix4f currentToPreviousFrame = Matrix4f::Identity();
         // Iterate over levels for pointClouds | We assume that levels match for both pyramids
-        for (unsigned int i = 0; i < sourcePointClouds.size(); i++) {
-            for (unsigned int k = 0; k < m_iterations_per_level[i]; k++)
-                previousToCurrentFrame = pointToPlaneICP(findCorrespondances(sourcePointClouds[i], targetPointClouds[i], previousToCurrentFrame, globalToPreviousFrame, m_cameraMatrix), globalToPreviousFrame, previousToCurrentFrame);
+        for (int i = sourcePointClouds.size() - 1; i >= 0; i--) {
+            // Adjust camera matrix for current level of pyramid
+            Matrix3f currentCameraMatrix = m_cameraMatrix / pow(2, i);
+            float width = m_width / pow(2, i);
+            currentCameraMatrix(2, 2) = 1;
+            for (unsigned int k = 0; k < m_iterations_per_level[i]; k++) {
+                std::vector<std::tuple<Vector3f, Vector3f, Vector3f>> correspondances = findCorrespondances(sourcePointClouds[i], targetPointClouds[i], currentToPreviousFrame, globalToPreviousFrame, currentCameraMatrix, width);
+                currentToPreviousFrame = pointToPlaneICP(correspondances, globalToPreviousFrame, currentToPreviousFrame);
+            }
         }
-
-        return globalToPreviousFrame * previousToCurrentFrame;
+        return globalToPreviousFrame * currentToPreviousFrame;
     }
 
 private:
-    Eigen::Matrix<float, 3, 4> m_cameraMatrix;
+    unsigned int m_width;
+    unsigned int m_height;
+    Eigen::Matrix3f m_cameraMatrix;
     // Threshold values for correspondance search
     float m_vertex_diff_threshold;
     float m_normal_diff_threshold;
@@ -58,17 +67,14 @@ private:
 
     // ---- Point to Plane ICP ----
 
-    Matrix4f pointToPlaneICP(const std::vector<std::tuple<Vector3f, Vector3f, Vector3f>>& correspondences, const Matrix4f& globalToPreviousFrame, const Matrix4f& previousToCurrentFrame) {
-        Matrix4f output;
-        output.setIdentity();
+    Matrix4f pointToPlaneICP(const std::vector<std::tuple<Vector3f, Vector3f, Vector3f>>& correspondences, const Matrix4f& globalToPreviousFrame, const Matrix4f& currentToPreviousFrame) {
+        Matrix4f output = Matrix4f::Identity();
 
         // designMatrix contains sum of A_t * A matrices
-        Eigen::Matrix<float, 6, 6> designMatrix;
-        designMatrix.setZero();
+        Eigen::Matrix<float, 6, 6> designMatrix = Eigen::Matrix<float, 6, 6>::Zero();
 
         // designVector contains sum of A_t * b vectors
-        Eigen::Matrix<float, 6, 1> designVector;
-        designVector.setZero();
+        Eigen::Matrix<float, 6, 1> designVector = Eigen::Matrix<float, 6, 1>::Zero();
 
         for (unsigned int i = 0; i < correspondences.size(); i++) {
             // SourceVertex -> V_k, TargetVertex -> V_k-1, TargetNormal -> N_k-1
@@ -120,7 +126,7 @@ private:
 
     // Source -> PointCloud of k-th frame, Target -> PointCloud of k-1-th frame | Rendered PointCloud at k-1-th position
     // FrameToFrameTransformation -> Transformation from k-th to k-1-th frame
-    std::vector<std::tuple<Vector3f, Vector3f, Vector3f>> findCorrespondances(const PointCloud& sourcePointCloud, const PointCloud& targetPointCloud, const Matrix4f& frameToFrameTransformation, const Matrix4f& globalToPrevFrameTransform, const Eigen::Matrix<float, 3, 4>& cameraMatrix) {
+    std::vector<std::tuple<Vector3f, Vector3f, Vector3f>> findCorrespondances(const PointCloud& sourcePointCloud, const PointCloud& targetPointCloud, const Matrix4f& frameToFrameTransformation, const Matrix4f& globalToPrevFrameTransform, const Eigen::Matrix3f cameraMatrix, float width) {
         // Find correspondances between sourcePointCloud and targetPointCloud
         // Return correspondences i.e. V_k, N_k, V_k-1
         std::vector<std::tuple<Vector3f, Vector3f, Vector3f>> correspondences;
@@ -131,7 +137,7 @@ private:
             Vector3f sourceVertex = sourcePointCloud.getPoints()[i];
             Vector3f normalVertex = sourcePointCloud.getNormals()[i];
 
-            std::tuple<Vector3f, Vector3f> correspondingPoint = findCorrespondingPoint(sourceVertex, normalVertex, targetPointCloud, frameToFrameTransformation, globalToPrevFrameTransform, cameraMatrix);
+            std::tuple<Vector3f, Vector3f> correspondingPoint = findCorrespondingPoint(sourceVertex, normalVertex, targetPointCloud, frameToFrameTransformation, globalToPrevFrameTransform, cameraMatrix, width);
             if (std::get<0>(correspondingPoint) != Vector3f::Zero() && std::get<1>(correspondingPoint) != Vector3f::Zero()) {
                 // Add v_k, v_k-1, n_k-1 to correspondences
                 correspondences.push_back(std::make_tuple(sourceVertex, std::get<0>(correspondingPoint), std::get<1>(correspondingPoint)));
@@ -142,32 +148,28 @@ private:
     }
 
     // PyramidLevel -> Used to determine the size of the projected window
-    std::tuple<Vector3f, Vector3f> findCorrespondingPoint(const Vector3f& sourceVertex, const Vector3f& sourceNormal, const PointCloud& targetPointCloud, const Matrix4f& frameToFrameTransformation, const Matrix4f& globalToPrevFrameTransform, const Eigen::Matrix<float, 3, 4>& cameraMatrix) {
+    std::tuple<Vector3f, Vector3f> findCorrespondingPoint(const Vector3f& sourceVertex, const Vector3f& sourceNormal, const PointCloud& targetPointCloud, const Matrix4f& frameToFrameTransformation, const Matrix4f& globalToPrevFrameTransform, const Matrix3f& cameraMatrix, float width) {
         // Find corresponding point in sourcePointCloud for given targetVertex
         // Return corresponding point and normal
         Vector3f correspondingPoint = Vector3f::Zero();
         Vector3f correspondingNormal = Vector3f::Zero();
 
-        Vector3f transformedSourceVector = cameraMatrix * frameToFrameTransformation * homogenize_3d(sourceVertex);
+        Vector3f transformedSourceVector = cameraMatrix * dehomogenize_3d(frameToFrameTransformation * homogenize_3d(sourceVertex));
         Vector2f projectedSourceVector = dehomogenize_2d(transformedSourceVector);
 
-        // FIXME: Change Lookup for Source Vertex i.e. second coordinate with row major
-
-        Vector3f targetVertex = targetPointCloud.getPoints()[projectedSourceVector[0]];
-        Vector3f targetNormal = targetPointCloud.getNormals()[projectedSourceVector[0]];
+        // Get corresponding point in targetImage (V_k-1) | Row-Major Order
+        Vector3f targetVertex = targetPointCloud.getPoints()[projectedSourceVector[0] + projectedSourceVector[1] * width];
+        Vector3f targetNormal = targetPointCloud.getNormals()[projectedSourceVector[0] + projectedSourceVector[1] * width];
 
         // Check whether targetVertex is valid i.e. not MINF (M(u) = 1)
         if (targetVertex[0] == MINF || targetVertex[1] == MINF || targetVertex[2] == MINF || targetNormal[0] == MINF || targetNormal[1] == MINF || targetNormal[2] == MINF) {
             return std::make_tuple(correspondingPoint, correspondingNormal);
         }
 
-        Vector4f targetVertexGlobal = globalToPrevFrameTransform * homogenize_3d(targetNormal);
-        // T_g,k = T_g,k-1 * T_k-1,k
-        Vector4f sourceVertexGlobal = globalToPrevFrameTransform * frameToFrameTransformation *
-                homogenize_3d(sourceVertex);
-
+        // T_g,k = T_g,k-1 * T_k-1,k. The translation part of T_g,k-1 cancels out and the rotation is ||R|| = 1
+        Vector3f sourceVertexFramed = dehomogenize_3d(frameToFrameTransformation * homogenize_3d(sourceVertex));
         // Check if the distance between the sourceVertex and the targetVertex is too large (||T_g,k * v_k - T_g,k-1 * v_k-1|| > epsilon_d)
-        if ((dehomogenize_3d(targetVertexGlobal) - dehomogenize_3d(sourceVertexGlobal)).norm() <= m_vertex_diff_threshold) {
+        if ((targetVertex - sourceVertexFramed).norm() <= m_vertex_diff_threshold) {
             return std::make_tuple(correspondingPoint, correspondingNormal);
         }
 
@@ -199,6 +201,5 @@ private:
     Vector2f dehomogenize_2d(const Vector3f point) {
         return Vector2f(point[0] / point[2], point[1] / point[2]);
     }
-
 
 };

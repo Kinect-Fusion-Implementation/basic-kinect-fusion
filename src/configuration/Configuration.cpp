@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <iostream>
 
+
 std::string Configuration::getDataSetPath()
 {
     std::string dataSetPath;
@@ -14,6 +15,7 @@ std::string Configuration::getDataSetPath()
     {
         dataSetPath = "../../../cv-data/RGBD-Dataset-Freiburg1/";
     }
+
     return dataSetPath;
 }
 
