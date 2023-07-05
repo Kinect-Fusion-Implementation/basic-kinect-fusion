@@ -2,10 +2,11 @@
 #include <filesystem>
 #include <iostream>
 
+
 std::string Configuration::getDataSetPath()
 {
 	std::string dataSetPath;
-	if (USERNAME == "dominik")
+	if (USERNAME == std::string("dominik"))
 	{
 		dataSetPath = "../../../cv-data/RGBD-Dataset-Freiburg1/";
 	}
@@ -19,7 +20,7 @@ std::string Configuration::getDataSetPath()
 std::string Configuration::getOutputDirectory()
 {
 	std::string outputDirectory;
-	if (USERNAME == "dominik")
+	if (USERNAME == std::string("dominik"))
 	{
 		outputDirectory = "./Output/";
 	}

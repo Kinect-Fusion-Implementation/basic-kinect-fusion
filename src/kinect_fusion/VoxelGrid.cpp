@@ -46,7 +46,7 @@ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsign
 						continue;
 					}
 					Vector3f pixelCoordinates = (intrinsics * cameraCoordinatesOfGridCell) / cameraCoordinatesOfGridCell.z();
-					float depthOfVoxelInCamera = cameraCoordinatesOfGridCell.z();
+					
 					assert(pixelCoordinates.z() == 1);
 					if (pixelCoordinates.x() < 0 || pixelCoordinates.y() < 0 || pixelCoordinates.x() >= depthMapWidth || pixelCoordinates.y() >= depthMapHeight) {
 						continue;
@@ -54,14 +54,16 @@ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsign
 					// find depth in depthmap that is stored in row major
 					float depth = depthMap[static_cast<int>(pixelCoordinates.x()) + static_cast<int>(pixelCoordinates.y()) * depthMapWidth];
 					
-					if (depth > depthOfVoxelInCamera) {
+					float distanceOfVoxelToCamera = (worldCoordinatesOfGridCell - extrinsics.block<3,1>(0,3)).norm();
+					if (depth > distanceOfVoxelToCamera) {
 						// Our voxel is in front of the surface from the view of the camera
 						getVoxelData(w,h,d).freeSpace++;
 					}
 					
 					// There is an alternative formulation to this in the second paper...
-					float sdfEstimate = std::clamp(depth - depthOfVoxelInCamera, -truncation, truncation);
-					if(sdfEstimate > -truncation) {
+					// This will be >0 for points between camera and surface and < 0 for points behind the surface
+					float sdfEstimate = std::clamp(depth - distanceOfVoxelToCamera, -truncation, truncation);
+					if(std::abs(sdfEstimate) < truncation) {
 						VoxelData& voxel = getVoxelData(w,h,d);
 						// Just like in the paper
 						float newWeight = 1;

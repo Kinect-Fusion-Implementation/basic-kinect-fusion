@@ -109,7 +109,6 @@ public:
 			}
 		}
 		m_currentTrajectory = m_trajectory[idx];
-
 		return true;
 	}
 

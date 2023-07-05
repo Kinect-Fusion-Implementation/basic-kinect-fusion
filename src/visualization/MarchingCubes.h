@@ -443,6 +443,19 @@ bool processGridCell(VoxelGrid &tsdfGrid, const int x, const int y, const int z,
 	cell.val[6] = (float)tsdfGrid.getVoxelData(x, y + 1, z + 1).depthAverage;
 	cell.val[7] = (float)tsdfGrid.getVoxelData(x + 1, y + 1, z + 1).depthAverage;
 
+	// Check whether there are voxels in this grid cell that have not been observed -> skip such a grid cell
+	if (tsdfGrid.getVoxelData(x + 1, y, z).weights == 0 ||
+		tsdfGrid.getVoxelData(x, y, z).weights == 0 ||
+		tsdfGrid.getVoxelData(x, y + 1, z).weights == 0 ||
+		tsdfGrid.getVoxelData(x + 1, y + 1, z).weights == 0 ||
+		tsdfGrid.getVoxelData(x + 1, y, z + 1).weights == 0 ||
+		tsdfGrid.getVoxelData(x, y, z + 1).weights == 0 ||
+		tsdfGrid.getVoxelData(x, y + 1, z + 1).weights == 0 ||
+		tsdfGrid.getVoxelData(x + 1, y + 1, z + 1).weights == 0)
+	{
+		return false;
+	}
+
 	MC_Triangle tris[6];
 	int numTris = Polygonise(cell, iso, tris);
 
@@ -466,7 +479,7 @@ bool processGridCell(VoxelGrid &tsdfGrid, const int x, const int y, const int z,
 	return true;
 }
 
-void run_marching_cubes(VoxelGrid &tsdfVoxelGrid)
+void run_marching_cubes(VoxelGrid &tsdfVoxelGrid, int idx)
 {
 	// extract the zero iso-surface using marching cubes
 	SimpleMesh mesh;
@@ -483,7 +496,7 @@ void run_marching_cubes(VoxelGrid &tsdfVoxelGrid)
 		}
 	}
 
-	std::string filenameOut = Configuration::getOutputDirectory() + "/kinect_mesh.off";
+	std::string filenameOut = Configuration::getOutputDirectory() + "/kinect_mesh_" + std::to_string(idx) + ".off";
 	// write mesh to file
 	if (!mesh.WriteMesh(filenameOut))
 	{
