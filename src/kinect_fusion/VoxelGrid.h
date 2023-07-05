@@ -23,7 +23,7 @@ private:
     // Thus coordinate (i, j, k) corresponds to linearized index k + max_depth * j + max_depth * max_height * i
     std::vector<VoxelData> m_voxelGrid;
     // Grid is orientied along the world frame axes, but we want to define the area it covers freely by shifting its (0,0) location relative to the world frame
-    Vector3f m_gridOrigin;
+    Vector3f m_gridOriginOffset;
 
     /// Defines how many voxels along each direction the grid will have
 

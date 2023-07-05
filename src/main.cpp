@@ -19,11 +19,11 @@ int main()
 	int roomWidhtMeter = 4;
 	int roomHeightMeter = 4;
 	int roomDepthMeter = 4;
-	float voxelsPerCentimeter = 50;
-	float scale = 1 / voxelsPerCentimeter;
-	int numberVoxelsWidth = roomWidhtMeter * voxelsPerCentimeter;
-	int numberVoxelsHeight = roomHeightMeter * voxelsPerCentimeter;
-	int numberVoxelsDepth = roomDepthMeter * voxelsPerCentimeter;
+	float voxelsPerMeter = 50;
+	float scale = 1 / voxelsPerMeter;
+	int numberVoxelsWidth = roomWidhtMeter * voxelsPerMeter;
+	int numberVoxelsHeight = roomHeightMeter * voxelsPerMeter;
+	int numberVoxelsDepth = roomDepthMeter * voxelsPerMeter;
 	VoxelGrid grid(Vector3f(-2.0, -2.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, scale);
 	int idx = 0;
 	while (sensor.processNextFrame())

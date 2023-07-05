@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <iostream>
 
-VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, float scale) : m_gridOrigin(gridOrigin.x(), gridOrigin.y(), gridOrigin.z()), m_numberVoxelsWidth(numberVoxelsWidth), m_numberVoxelsDepth(numberVoxelsDepth), m_numberVoxelsHeight(numberVoxelsHeight), m_spatialVoxelScale(scale)
+VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, float scale) : m_gridOriginOffset(gridOrigin.x(), gridOrigin.y(), gridOrigin.z()), m_numberVoxelsWidth(numberVoxelsWidth), m_numberVoxelsDepth(numberVoxelsDepth), m_numberVoxelsHeight(numberVoxelsHeight), m_spatialVoxelScale(scale)
 {
 	unsigned long long numberVoxels = m_numberVoxelsWidth * m_numberVoxelsDepth * m_numberVoxelsHeight;
 	m_voxelGrid = std::vector<VoxelData>(numberVoxels, VoxelData(0.0, 0.0));
@@ -16,7 +16,7 @@ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsign
         gridCellCoordinates += centerOffset;
 		gridCellCoordinates *= m_spatialVoxelScale;
 		// grid origin is the offset from the world frame origin (point in voxel grid frame is offset by exactly that vector)
-        return gridCellCoordinates + m_gridOrigin;
+        return gridCellCoordinates + m_gridOriginOffset;
     }
 	
 	VoxelData& VoxelGrid::getVoxelData(unsigned int w, unsigned int h, unsigned int d)
