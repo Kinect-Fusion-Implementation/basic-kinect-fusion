@@ -485,7 +485,7 @@ void run_marching_cubes(VoxelGrid &tsdfVoxelGrid, int idx)
 	SimpleMesh mesh;
 	for (unsigned int w = 0; w < tsdfVoxelGrid.m_numberVoxelsWidth - 1; w++)
 	{
-		std::cerr << "Marching Cubes on slice " << w << " of " << tsdfVoxelGrid.m_numberVoxelsWidth << std::endl;
+		std::cout << "Marching Cubes on slice " << w << " of " << tsdfVoxelGrid.m_numberVoxelsWidth << std::endl;
 
 		for (unsigned int h = 0; h < tsdfVoxelGrid.m_numberVoxelsHeight - 1 - 1; h++)
 		{
@@ -500,6 +500,6 @@ void run_marching_cubes(VoxelGrid &tsdfVoxelGrid, int idx)
 	// write mesh to file
 	if (!mesh.WriteMesh(filenameOut))
 	{
-		std::cout << "ERROR: unable to write output file!" << std::endl;
+		std::cerr << "ERROR: unable to write output file!" << std::endl;
 	}
 }

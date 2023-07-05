@@ -2,7 +2,7 @@
 #include <string>
 
 #ifndef USERNAME
-#define USERNAME "dominik"
+#define USERNAME std::string("dominik")
 #endif
 
 namespace Configuration
