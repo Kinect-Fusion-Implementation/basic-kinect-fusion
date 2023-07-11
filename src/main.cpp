@@ -76,8 +76,8 @@ int icp_accuracy_test() {
 
 
 int main() {
-    return icp_accuracy_test();
-    /*int result = 0;
+    //return icp_accuracy_test();
+    int result = 0;
     VirtualSensor sensor;
     sensor.init(Configuration::getDataSetPath());
 
@@ -90,20 +90,28 @@ int main() {
     int numberVoxelsHeight = roomHeightMeter * voxelsPerMeter;
     int numberVoxelsDepth = roomDepthMeter * voxelsPerMeter;
     VoxelGrid grid(Vector3f(-3.0, -3.0, -3.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, scale);
+
+    // TODO: Akkumulierter Fehler (ICP?)
     int idx = 0;
+    Matrix4f trajectoryOffset;
     while (sensor.processNextFrame())
     {
-        float *depth = sensor.getDepth();
-        // Trajectory:	 	world -> view space (Extrinsics)
-        // InvTrajectory:	view -> world space (Pose)
-        std::cout << "Trajectory:\n" << sensor.getTrajectory() << std::endl;
-        // Somehow all of this code does not work with the GT trajectory (extrinsics)
-        grid.updateTSDF(sensor.getDepthExtrinsics(), sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 10.0f);
+        float* depth = sensor.getDepth();
+        // Trajectory:       world -> view space (Extrinsics)
+        // InvTrajectory:    view -> world space (Pose)
+
+        if (idx == 0) {
+            trajectoryOffset = sensor.getTrajectory().inverse();
+        }
+        /*Matrix4f extrinsics = sensor.getTrajectory() * trajectoryOffset;
+        std::cout << "Extrinsics:\n" << extrinsics << "\n\n";*/
+
+        grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 0.125f);
+        run_marching_cubes(grid, idx);
         idx++;
-        if (idx > 200) {
+        if (idx > 50) {
             break;
         }
-        run_marching_cubes(grid, idx);
         /*
             float sigmaS(2.0);
             float sigmaR(2.0);
@@ -123,8 +131,8 @@ int main() {
             const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
 
             break;
-
+            */
     }
 
-    return result;*/
+    return result;
 }
