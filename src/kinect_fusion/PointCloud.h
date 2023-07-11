@@ -102,11 +102,15 @@ public:
 			const auto &point = pointsTmp[i];
 			const auto &normal = normalsTmp[i];
 
+            // TODO: REVERT THIS BACK TO ORIGINAL - ONLY FOR TESTING ICP
 			if (point.allFinite() && normal.allFinite())
 			{
 				m_points.push_back(point);
 				m_normals.push_back(normal);
-			}
+			} else {
+                m_points.push_back(Vector3f(MINF, MINF, MINF));
+                m_normals.push_back(Vector3f(MINF, MINF, MINF));
+            }
 		}
 	}
 
