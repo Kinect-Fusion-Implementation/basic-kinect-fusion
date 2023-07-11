@@ -12,7 +12,7 @@ std::string Configuration::getDataSetPath()
 	}
 	if (USERNAME == std::string("helga"))
 	{
-		dataSetPath = "../../../cv-data/RGBD-Dataset-Freiburg1/";
+		dataSetPath = "../../../Data/rgbd_dataset_freiburg1_xyz/";
 	}
 	return dataSetPath;
 }

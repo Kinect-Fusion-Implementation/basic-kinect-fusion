@@ -7,13 +7,13 @@
 struct MC_Triangle
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-	Vector3f p[3];
+		Vector3f p[3];
 };
 
 struct MC_Gridcell
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-	Vector3f p[8];
+		Vector3f p[8];
 	float val[8];
 };
 
@@ -49,7 +49,7 @@ int edgeTable[256] = {
 	0xe90, 0xf99, 0xc93, 0xd9a, 0xa96, 0xb9f, 0x895, 0x99c,
 	0x69c, 0x795, 0x49f, 0x596, 0x29a, 0x393, 0x99, 0x190,
 	0xf00, 0xe09, 0xd03, 0xc0a, 0xb06, 0xa0f, 0x905, 0x80c,
-	0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0};
+	0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0 };
 
 int triTable[256][16] = {
 	{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
@@ -307,14 +307,14 @@ int triTable[256][16] = {
 	{1, 3, 8, 9, 1, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
 	{0, 9, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
 	{0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-	{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}};
+	{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1} };
 
 //****************************************************************************************************************
 /*
 Linearly interpolate the position where an isosurface cuts
 an edge between two vertices, each with their own scalar value
 */
-Vector3f VertexInterp(float isolevel, const Vector3f &p1, const Vector3f &p2, float valp1, float valp2)
+Vector3f VertexInterp(float isolevel, const Vector3f& p1, const Vector3f& p2, float valp1, float valp2)
 {
 	// TODO: implement the linear interpolant
 	// Assume that the function value at 'p1' is 'valp1' and the function value at 'p2' is 'valp2'.
@@ -342,7 +342,7 @@ will be loaded up with the vertices at most 5 triangular facets.
 0 will be returned if the grid cell is either totally above
 or totally below the isolevel.
 */
-int Polygonise(MC_Gridcell grid, float isolevel, MC_Triangle *triangles)
+int Polygonise(MC_Gridcell grid, float isolevel, MC_Triangle* triangles)
 {
 	int ntriang;
 	int cubeindex;
@@ -409,28 +409,28 @@ int Polygonise(MC_Gridcell grid, float isolevel, MC_Triangle *triangles)
 	return ntriang;
 }
 
-bool processGridCell(VoxelGrid &tsdfGrid, const int x, const int y, const int z, float iso, SimpleMesh *mesh)
+bool processGridCell(VoxelGrid& tsdfGrid, const int x, const int y, const int z, float iso, SimpleMesh* mesh)
 {
 	MC_Gridcell cell;
 
 	Vector3f tmp;
 
 	// cell corners
-	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x + 1, y, z));
+	tmp = tsdfGrid.getCellCenterInWorldCoords(Vector3i(x + 1, y, z));
 	cell.p[0] = Vector3f(tmp[0], tmp[1], tmp[2]);
-	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x, y, z));
+	tmp = tsdfGrid.getCellCenterInWorldCoords(Vector3i(x, y, z));
 	cell.p[1] = Vector3f(tmp[0], tmp[1], tmp[2]);
-	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x, y + 1, z));
+	tmp = tsdfGrid.getCellCenterInWorldCoords(Vector3i(x, y + 1, z));
 	cell.p[2] = Vector3f(tmp[0], tmp[1], tmp[2]);
-	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x + 1, y + 1, z));
+	tmp = tsdfGrid.getCellCenterInWorldCoords(Vector3i(x + 1, y + 1, z));
 	cell.p[3] = Vector3f(tmp[0], tmp[1], tmp[2]);
-	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x + 1, y, z + 1));
+	tmp = tsdfGrid.getCellCenterInWorldCoords(Vector3i(x + 1, y, z + 1));
 	cell.p[4] = Vector3f(tmp[0], tmp[1], tmp[2]);
-	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x, y, z + 1));
+	tmp = tsdfGrid.getCellCenterInWorldCoords(Vector3i(x, y, z + 1));
 	cell.p[5] = Vector3f(tmp[0], tmp[1], tmp[2]);
-	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x, y + 1, z + 1));
+	tmp = tsdfGrid.getCellCenterInWorldCoords(Vector3i(x, y + 1, z + 1));
 	cell.p[6] = Vector3f(tmp[0], tmp[1], tmp[2]);
-	tmp = tsdfGrid.voxelGridCenterToWorld(Vector3i(x + 1, y + 1, z + 1));
+	tmp = tsdfGrid.getCellCenterInWorldCoords(Vector3i(x + 1, y + 1, z + 1));
 	cell.p[7] = Vector3f(tmp[0], tmp[1], tmp[2]);
 
 	// cell corner values
@@ -479,13 +479,13 @@ bool processGridCell(VoxelGrid &tsdfGrid, const int x, const int y, const int z,
 	return true;
 }
 
-void run_marching_cubes(VoxelGrid &tsdfVoxelGrid, int idx)
+void run_marching_cubes(VoxelGrid& tsdfVoxelGrid, int idx)
 {
 	// extract the zero iso-surface using marching cubes
 	SimpleMesh mesh;
 	for (unsigned int w = 0; w < tsdfVoxelGrid.m_numberVoxelsWidth - 1; w++)
 	{
-		std::cerr << "Marching Cubes on slice " << w << " of " << tsdfVoxelGrid.m_numberVoxelsWidth << std::endl;
+		//std::cerr << "Marching Cubes on slice " << w << " of " << tsdfVoxelGrid.m_numberVoxelsWidth << std::endl;
 
 		for (unsigned int h = 0; h < tsdfVoxelGrid.m_numberVoxelsHeight - 1 - 1; h++)
 		{
@@ -494,6 +494,10 @@ void run_marching_cubes(VoxelGrid &tsdfVoxelGrid, int idx)
 				processGridCell(tsdfVoxelGrid, w, h, d, 0.00f, &mesh);
 			}
 		}
+	}
+
+	if (idx > 4 && idx % 10 != 0) {
+		return;
 	}
 
 	std::string filenameOut = Configuration::getOutputDirectory() + "/kinect_mesh_" + std::to_string(idx) + ".off";

@@ -44,7 +44,7 @@ public:
      * Transforms coordinates in the voxel grids (grid indices along each direction (width, height, depth)) into a corresponding point in world coordinates.
      * Note that this point corresponds to the center of the voxel grid cell corresponding to the index.
      */
-    Vector3f voxelGridCenterToWorld(Vector3i gridCell);
+    Vector3f getCellCenterInWorldCoords(Vector3i gridCell);
 
     /**
      * Updates TSDF Voxel grid using Volumetric Fusion algorithm

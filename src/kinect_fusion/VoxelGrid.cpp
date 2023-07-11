@@ -9,7 +9,7 @@ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsign
 	m_voxelGrid = std::vector<VoxelData>(numberVoxels, VoxelData(0.0, 0.0));
 }
 
-    Vector3f VoxelGrid::voxelGridCenterToWorld(Vector3i gridCell)
+    Vector3f VoxelGrid::getCellCenterInWorldCoords(Vector3i gridCell)
     {
         Vector3f gridCellCoordinates(gridCell.x(), gridCell.y(), gridCell.z());
         Vector3f centerOffset(0.5, 0.5, 0.5);
@@ -22,7 +22,7 @@ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsign
 	VoxelData& VoxelGrid::getVoxelData(unsigned int w, unsigned int h, unsigned int d)
 	{
 		return m_voxelGrid.at(d + m_numberVoxelsDepth * h + m_numberVoxelsDepth * m_numberVoxelsHeight * w);
-	} 
+	}
 
 	void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, float* depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight, float truncation) {
 		// i,j are the (x,y) coordinates of the frontal slice
@@ -37,7 +37,7 @@ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsign
 				{
 					// std::cout << "Processing voxel: (" << w << ", " << h << ", " << d << ") (width, height, depth)" << std::endl;
 					Vector3i gridCoordinates(w, h, d);
-					Vector3f worldCoordinatesOfGridCell = voxelGridCenterToWorld(gridCoordinates);
+					Vector3f worldCoordinatesOfGridCell = getCellCenterInWorldCoords(gridCoordinates);
 					Vector3f cameraCoordinatesOfGridCell = extrinsics.block<3,3>(0,0) * worldCoordinatesOfGridCell;
 					cameraCoordinatesOfGridCell += extrinsics.block<3,1>(0,3);
 					// voxel is behind or on the camera plane
