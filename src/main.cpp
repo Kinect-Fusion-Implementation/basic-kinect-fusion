@@ -39,7 +39,7 @@ int icp_accuracy_test() {
         }
     }
 
-    // NOTE: "using invTraj is correct, since that maps from view to world space"
+    // NOTE: "using invTraj is correct, since that maps from view to world space" | T_global_k-1
     Matrix4f prevFrameToGlobal = sensor.getTrajectory().inverse();
     std::cout << "From prev. frame to global: " << std::endl << prevFrameToGlobal << std::endl;
     PointCloudPyramid pyramid1(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthExtrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
@@ -51,23 +51,29 @@ int icp_accuracy_test() {
         }
     }
 
-    // This matrix maps from k-th frame to global frame
+    // This matrix maps from k-th frame to global frame -> This is what we want to estimate | T_global_k
     Matrix4f gt = sensor.getTrajectory().inverse();
     std::cout << "Curr. frame to global: " << std::endl << gt << std::endl;
     PointCloudPyramid pyramid2(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthExtrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
 
+    // Get true frame to frame transformation i.e. k-th frame to k-1th frame T_k-1_k
+    Matrix4f gt_frame_to_prev = prevFrameToGlobal.inverse() * gt;
+    std::cout << "kth frame to k-1th frame: " << std::endl << gt_frame_to_prev << std::endl;
+
     Eigen::Matrix3f cameraMatrix = sensor.getDepthIntrinsics();
-    float vertex_diff_threshold = 0;
-    float normal_diff_threshold = 0;
+    // FIXME: Currently Hardcoded in ICP Optimizer
+    float vertex_diff_threshold = 0.3;
+    float normal_diff_threshold = 0.3;
     std::vector<int> iterations_per_level = {10, 5, 4};
     ICPOptimizer optimizer(sensor, vertex_diff_threshold, normal_diff_threshold, iterations_per_level);
-    Matrix4f est = optimizer.optimize(pyramid1, pyramid2, Eigen::Matrix4f::Identity());
+    Matrix4f est = optimizer.optimize(pyramid2, pyramid1, prevFrameToGlobal);
 
     std::cout << "Ground Truth: " << std::endl << gt << std::endl;
     std::cout << "Estimated: " << std::endl << est << std::endl;
-    std::cout << "Diff to ID Error: " << (gt.inverse() * est).norm() << std::endl;
+    std::cout << "Diff to ID Error: " << (gt * est).norm() / (gt.norm() * gt.norm()) << std::endl;
     std::cout << "Diff Error: " << (gt-est).norm() << std::endl;
 }
+
 
 int main() {
     return icp_accuracy_test();
