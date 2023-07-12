@@ -72,6 +72,8 @@ int icp_accuracy_test() {
     std::cout << "Estimated: " << std::endl << est << std::endl;
     std::cout << "Diff to ID Error: " << (gt * est).norm() / (gt.norm() * gt.norm()) << std::endl;
     std::cout << "Diff Error: " << (gt-est).norm() << std::endl;
+
+    return 0;
 }
 
 
@@ -91,7 +93,6 @@ int main() {
     int numberVoxelsDepth = roomDepthMeter * voxelsPerMeter;
     VoxelGrid grid(Vector3f(-3.0, -3.0, -3.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, scale);
 
-    // TODO: Akkumulierter Fehler (ICP?)
     int idx = 0;
     Matrix4f trajectoryOffset;
     while (sensor.processNextFrame())
@@ -103,13 +104,11 @@ int main() {
         if (idx == 0) {
             trajectoryOffset = sensor.getTrajectory().inverse();
         }
-        /*Matrix4f extrinsics = sensor.getTrajectory() * trajectoryOffset;
-        std::cout << "Extrinsics:\n" << extrinsics << "\n\n";*/
 
         grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 0.125f);
         run_marching_cubes(grid, idx);
         idx++;
-        if (idx > 50) {
+        if (idx > 4) {
             break;
         }
         /*
