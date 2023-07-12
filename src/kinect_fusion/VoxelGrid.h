@@ -25,7 +25,7 @@ private:
     // Grid is orientied along the world frame axes, but we want to define the area it covers freely by shifting its (0,0) location relative to the world frame
     Vector3f m_gridOriginOffset;
 
-    /// Defines how many voxels along each direction the grid will have
+    // Defines how many voxels along each direction the grid will have
 
     // Defines the spatial extend each voxel will represent along each direction (side length of cube)
     float m_spatialVoxelScale;
@@ -44,7 +44,7 @@ public:
      * Transforms coordinates in the voxel grids (grid indices along each direction (width, height, depth)) into a corresponding point in world coordinates.
      * Note that this point corresponds to the center of the voxel grid cell corresponding to the index.
      */
-    Vector3f voxelGridCenterToWorld(Vector3i gridCell);
+    Vector3f getCellCenterInWorldCoords(Vector3i gridCell);
 
     /**
      * Updates TSDF Voxel grid using Volumetric Fusion algorithm
