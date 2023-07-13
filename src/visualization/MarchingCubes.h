@@ -494,10 +494,6 @@ void run_marching_cubes(VoxelGrid& tsdfVoxelGrid, int idx)
 		}
 	}
 
-	if (idx > 4 && idx % 10 != 0) {
-		return;
-	}
-
 	std::string filenameOut = Configuration::getOutputDirectory() + "/kinect_mesh_" + std::to_string(idx) + ".off";
 	// write mesh to file
 	if (!mesh.WriteMesh(filenameOut))
