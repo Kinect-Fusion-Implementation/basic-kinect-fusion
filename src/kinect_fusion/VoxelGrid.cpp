@@ -51,7 +51,7 @@ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsic
 			rayDirection.normalize();
 			// We start tracing only 40 centimeters away from the camera
 			float distanceTravelled = 0.4;
-			Vector3f rayPosition = coordinates + distanceTravelled * rayDirection;
+			Vector3f rayPosition = poseMatrix.block<3, 1>(0, 3) + distanceTravelled * rayDirection;
 
 			Vector3i gridCoordinates = getGridCoordinates(rayPosition);
 			if (gridCoordinates.x() < 0 || gridCoordinates.x() >= m_numberVoxelsWidth || gridCoordinates.y() < 0 || gridCoordinates.y() >= m_numberVoxelsHeight || gridCoordinates.z() < 0 || gridCoordinates.z() >= m_numberVoxelsDepth)

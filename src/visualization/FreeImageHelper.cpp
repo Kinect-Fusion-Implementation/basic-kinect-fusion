@@ -374,8 +374,6 @@ FreeImageU16F::FreeImageU16F(const std::string &filename) : w(0), h(0), nChannel
 
 FreeImageU16F::~FreeImageU16F()
 {
-	if (data != nullptr)
-		delete[] data;
 }
 
 bool FreeImageU16F::LoadImageFromFile(const std::string &filename, unsigned int width, unsigned int height)

@@ -142,6 +142,7 @@ int main()
         // const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
         auto frameComputeEnd = std::chrono::high_resolution_clock::now();
         std::cout << "Computing the frame took: " << std::chrono::duration_cast<std::chrono::milliseconds>(frameComputeEnd - frameComputeStart).count() << " ms" << std::endl;
+        break;
     }
     auto totalComputeStop = std::chrono::high_resolution_clock::now();
     std::cout << "Computing for all frames took: " << std::chrono::duration_cast<std::chrono::milliseconds>(totalComputeStop - totalComputeStart).count() << " ms" << std::endl;
@@ -150,6 +151,6 @@ int main()
     auto marchingCubesStop = std::chrono::high_resolution_clock::now();
     std::cout << "Computing marching cubes took: " << std::chrono::duration_cast<std::chrono::milliseconds>(marchingCubesStop - marchingCubesStart).count() << " ms" << std::endl;
     RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
-    ImageUtil::saveNormalMapToImage((float*) raycast.normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("Raycasted TSDF"), "");
+    // ImageUtil::saveNormalMapToImage((float*) raycast.normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("Raycasted TSDF"), "");
     return result;
 }
