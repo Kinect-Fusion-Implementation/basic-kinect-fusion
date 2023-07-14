@@ -58,7 +58,7 @@ public:
 
 		// Compute smoothed depth map
 		computeSmoothedDepthMap(sigmaR, sigmaS);
-		ImageUtil::saveDepthMapToImage(m_smoothedDepthMap, m_width, m_height, "SmoothedDepthMap", "Saving smoothed depth map...");
+		// ImageUtil::saveDepthMapToImage(m_smoothedDepthMap, m_width, m_height, "SmoothedDepthMap", "Saving smoothed depth map...");
 
 		// Setup of pyramid
 		float *currentDepthMap = m_smoothedDepthMap;
@@ -66,6 +66,7 @@ public:
 
 		// Construct pyramid of pointClouds
 		pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, m_width, m_height, 0);
+
 		for (size_t i = 0; i < levels;)
 		{
 			// Compute subsampled depth map
@@ -73,8 +74,7 @@ public:
 			i++;
 
 			// Print subsampled depth map to file
-			ImageUtil::saveDepthMapToImage(currentDepthMap, m_width >> i, m_height >> i,
-										   std::string("SubsampledDepthMap_") + std::to_string(i), "Saving subsampled depthmap...");
+			// ImageUtil::saveDepthMapToImage(currentDepthMap, m_width >> i, m_height >> i, std::string("SubsampledDepthMap_") + std::to_string(i), "Saving subsampled depthmap...");
 
 			// Store subsampled depth map in pyramid
 			pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, m_width >> i, m_height >> i, i);
@@ -150,7 +150,7 @@ private:
 	{
 		float threshold = 3 * sigmaR;
 		float *blockAverage = new float[(width / 2) * (height / 2)];
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
 		for (int v = 0; v < height; v = v + 2)
 		{
 			for (int u = 0; u < width; u = u + 2)

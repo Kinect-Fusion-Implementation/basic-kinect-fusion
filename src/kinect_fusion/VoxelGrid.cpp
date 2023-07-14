@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <iostream>
 
-VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, float scale) : m_gridOriginOffset(gridOrigin.x(), gridOrigin.y(), gridOrigin.z()), m_numberVoxelsWidth(numberVoxelsWidth), m_numberVoxelsDepth(numberVoxelsDepth), m_numberVoxelsHeight(numberVoxelsHeight), m_spatialVoxelScale(scale)
+VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, unsigned int imageHeight, unsigned int imageWidth, float scale) : m_gridOriginOffset(gridOrigin.x(), gridOrigin.y(), gridOrigin.z()), m_numberVoxelsWidth(numberVoxelsWidth), m_numberVoxelsDepth(numberVoxelsDepth), m_numberVoxelsHeight(numberVoxelsHeight), m_imageHeight(imageHeight), m_imageWidth(imageWidth), m_spatialVoxelScale(scale)
 {
 	unsigned long long numberVoxels = m_numberVoxelsWidth * m_numberVoxelsDepth * m_numberVoxelsHeight;
 	m_voxelGrid = std::vector<VoxelData>(numberVoxels, VoxelData(0.0, 0.0));
@@ -24,16 +24,21 @@ VoxelData &VoxelGrid::getVoxelData(unsigned int w, unsigned int h, unsigned int 
 	return m_voxelGrid.at(d + m_numberVoxelsDepth * h + m_numberVoxelsDepth * m_numberVoxelsHeight * w);
 }
 
-// Raycast traversal
-	/*for (size_t w = 0; w < depthMapWidth; w++) {
-		for (size_t h = 0; h < depthMapHeight; h++) {
+std::vector<Vector3f> VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics)
+{
+	for (size_t w = 0; w < m_imageWidth; w++)
+	{
+		for (size_t h = 0; h < m_imageHeight; h++)
+		{
 			// Start at view plane (TODO: needs intrinsics)
 			Vector3f trajectory = extrinsics.block<3, 3>(0, 0) * Vector3f(0, 0, 1);
 			Vector3f rayPos = extrinsics.block<3, 1>(0, 3) + 5 * trajectory;
-			while (true) {
+			while (true)
+			{
 				// Set up next step
 				Vector3i gridCoordinates(int(rayPos.x()), int(rayPos.y()), int(rayPos.z()));
-				if (gridCoordinates.x() < 0 || gridCoordinates.x() >= m_numberVoxelsWidth || gridCoordinates.y() < 0 || gridCoordinates.y() >= m_numberVoxelsHeight || gridCoordinates.z() < 0 || gridCoordinates.z() >= m_numberVoxelsDepth) {
+				if (gridCoordinates.x() < 0 || gridCoordinates.x() >= m_numberVoxelsWidth || gridCoordinates.y() < 0 || gridCoordinates.y() >= m_numberVoxelsHeight || gridCoordinates.z() < 0 || gridCoordinates.z() >= m_numberVoxelsDepth)
+				{
 					continue;
 				}
 				Vector3f worldCoordinatesOfGridCell = getCellCenterInWorldCoords(gridCoordinates);
@@ -50,15 +55,14 @@ VoxelData &VoxelGrid::getVoxelData(unsigned int w, unsigned int h, unsigned int 
 				rayPos += (std::min(std::min(nextCrossings.x(), nextCrossings.y()), nextCrossings.z()) + 0.0625f) * trajectory;
 			}
 		}
-	}*/
-
-	// w,h are the (x,y) coordinates of the frontal slice
-	// Finally iterate to the right...
+	}
+}
 
 void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, float *depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight, float truncation)
 {
-	// w,h are the (x,y) coordinates of the frontal slice
-	// Finaly iterate upwards
+// w,h are the (x,y) coordinates of the frontal slice
+// Finaly iterate upwards
+#pragma omp parallel for collapse(3)
 	for (size_t w = 0; w < m_numberVoxelsWidth; w++)
 	{
 		// Then iterate voxels to the right...

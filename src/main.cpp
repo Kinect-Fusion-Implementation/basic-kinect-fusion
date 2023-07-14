@@ -84,6 +84,7 @@ int icp_accuracy_test()
               << est << std::endl;
     std::cout << "Diff to ID Error: " << (gt * est).norm() / (gt.norm() * gt.norm()) << std::endl;
     std::cout << "Diff Error: " << (gt - est).norm() << std::endl;
+    return 0;
 }
 
 int main()
@@ -93,54 +94,62 @@ int main()
     VirtualSensor sensor;
     sensor.init(Configuration::getDataSetPath());
 
-    int roomWidhtMeter = 6;
+    float sigmaS(2.0);
+    float sigmaR(2.0);
+    std::cout << "Using sigmaS: " << sigmaS << std::endl;
+    std::cout << "Using sigmaR: " << sigmaR << std::endl;
+
+    // Number of subsampling levels
+    const unsigned levels = 2;
+    // Size of smoothing window
+    const unsigned windowSize = 21;
+    // Size of subsampling window
+    const unsigned blockSize = 3;
+
+    int roomWidthMeter = 6;
     int roomHeightMeter = 6;
     int roomDepthMeter = 6;
     float voxelsPerMeter = 40;
     float scale = 1 / voxelsPerMeter;
-    int numberVoxelsWidth = roomWidhtMeter * voxelsPerMeter;
+    int numberVoxelsWidth = roomWidthMeter * voxelsPerMeter;
     int numberVoxelsHeight = roomHeightMeter * voxelsPerMeter;
     int numberVoxelsDepth = roomDepthMeter * voxelsPerMeter;
     auto gridGenStart = std::chrono::high_resolution_clock::now();
-    VoxelGrid grid(Vector3f(-3.0, -3.0, -3.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, scale);
+    VoxelGrid grid(Vector3f(-3.0, -3.0, -3.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale);
     auto gridGenEnd = std::chrono::high_resolution_clock::now();
     std::cout << "Setting up grid took: " << gridGenEnd - gridGenStart << " ms" << std::endl;
     int idx = 0;
     Matrix4f trajectoryOffset;
     
+    auto totalComputeStart = std::chrono::high_resolution_clock::now();
     while (sensor.processNextFrame())
     {
+        auto frameComputeStart = std::chrono::high_resolution_clock::now();
         float* depth = sensor.getDepth();
         // Trajectory:       world -> view space (Extrinsics)
         // InvTrajectory:    view -> world space (Pose)
 
         if (idx == 0) {
+            // We express our world space based on the first trajectory (we set the first trajectory to eye matrix, and express all further camera positions relative to that first camera position)
             trajectoryOffset = sensor.getTrajectory().inverse();
         }
         idx++;
         grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 0.125f);
-
-        /*
-        float sigmaS(2.0);
-        float sigmaR(2.0);
-        std::cout << "Using sigmaS: " << sigmaS << std::endl;
-        std::cout << "Using sigmaR: " << sigmaR << std::endl;
-
-        // Number of subsampling levels
-        const unsigned levels = 2;
-        // Size of smoothing window
-        const unsigned windowSize = 21;
-        // Size of subsampling window
-        const unsigned blockSize = 3;
-
+        
         // Somehow all of this code does not work with the GT trajectory (extrinsics)
-        PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
-        const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
-
-        break;
-        */
+        // PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
+        // const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
+        auto frameComputeEnd = std::chrono::high_resolution_clock::now();
+        std::cout << "Computing the frame took: " << std::chrono::duration_cast<std::chrono::milliseconds>(frameComputeEnd - frameComputeStart).count() << " ms" << std::endl;
     }
+
+    auto totalComputeStop = std::chrono::high_resolution_clock::now();
+    std::cout << "Computing for all frames took: " << std::chrono::duration_cast<std::chrono::milliseconds>(totalComputeStop - totalComputeStart).count() << " ms" << std::endl;
+    auto marchingCubesStart = std::chrono::high_resolution_clock::now();
     run_marching_cubes(grid, idx);
+    auto marchingCubesStop = std::chrono::high_resolution_clock::now();
+    std::cout << "Computing marching cubes took: " << std::chrono::duration_cast<std::chrono::milliseconds>(marchingCubesStop - marchingCubesStart).count() << " ms" << std::endl;
+
 
     return result;
 }

@@ -36,9 +36,11 @@ public:
     unsigned int m_numberVoxelsWidth;
     unsigned int m_numberVoxelsDepth;
     unsigned int m_numberVoxelsHeight;
+    unsigned int m_imageHeight;
+    unsigned int m_imageWidth;
 
     
-    VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, float scale);
+    VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, unsigned int imageHeight, unsigned int imageWidth,  float scale);
 
     /**
      * Transforms coordinates in the voxel grids (grid indices along each direction (width, height, depth)) into a corresponding point in world coordinates.
@@ -57,4 +59,9 @@ public:
      * We store our sdf data in depth > height > width
     */
    VoxelData& getVoxelData(unsigned int w, unsigned int h, unsigned int d);
+
+   /**
+    * Provides the point cloud that is the result of raycasting the voxel grid
+   */
+   std::vector<Vector3f> VoxelGrid::raycastVoxelGrid()
 };

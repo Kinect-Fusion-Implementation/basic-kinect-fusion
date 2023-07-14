@@ -483,6 +483,8 @@ void run_marching_cubes(VoxelGrid& tsdfVoxelGrid, int idx)
 {
 	// extract the zero iso-surface using marching cubes
 	SimpleMesh mesh;
+	
+#pragma omp parallel for collapse(3)
 	for (unsigned int w = 0; w < tsdfVoxelGrid.m_numberVoxelsWidth - 1; w++)
 	{
 		for (unsigned int h = 0; h < tsdfVoxelGrid.m_numberVoxelsHeight - 1 - 1; h++)

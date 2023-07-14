@@ -14,15 +14,14 @@ public:
 	 */
 	PointCloud(float *depthMap, const Matrix3f &depthIntrinsics, const Matrix4f &depthExtrinsics, const unsigned int width, const unsigned int height, int level, const unsigned int maxDistance = 10)
 	{
-		std::cout << "Constructing point cloud (vertex and normal map) for level " << level << "..." << std::endl;
-		std::cout << "Using Depth map dimensions: W: " << width << " H: " << height << std::endl;
+		// std::cout << "Constructing point cloud (vertex and normal map) for level " << level << "..." << std::endl;
+		// std::cout << "Using Depth map dimensions: W: " << width << " H: " << height << std::endl;
 		// Get depth intrinsics.
 		float fovX = depthIntrinsics(0, 0) / std::pow(2, level);
 		float fovY = depthIntrinsics(1, 1) / std::pow(2, level);
 		float cX = depthIntrinsics(0, 2) / std::pow(2, level);
 		float cY = depthIntrinsics(1, 2) / std::pow(2, level);
-		std::cout << "Intrinsics:\nfovX: " << fovX << " fovY: " << fovY << std::endl
-				  << "principal point (x, y):\n(" << cX << ", " << cY << ")" << std::endl;
+		// std::cout << "Intrinsics:\nfovX: " << fovX << " fovY: " << fovY << std::endl << "principal point (x, y):\n(" << cX << ", " << cY << ")" << std::endl;
 		const float maxDistanceHalved = maxDistance / 2.f;
 
 		// Compute inverse depth extrinsics.
@@ -34,7 +33,7 @@ public:
 		std::vector<Vector3f> pointsTmp(width * height);
 
 		// For every pixel row.
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
 		for (int v = 0; v < height; ++v)
 		{
 			// For every pixel in a row.
@@ -57,7 +56,7 @@ public:
 		// We need to compute derivatives and then the normalized normal vector (for valid pixels).
 		std::vector<Vector3f> normalsTmp(width * height);
 
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
 		for (int v = 1; v < height - 1; ++v)
 		{
 			for (int u = 1; u < width - 1; ++u)
@@ -79,18 +78,21 @@ public:
 		}
 
 		// We set invalid normals for border regions.
+
+#pragma omp parallel for
 		for (int u = 0; u < width; ++u)
 		{
 			normalsTmp[u] = Vector3f(MINF, MINF, MINF);
 			normalsTmp[u + (height - 1) * width] = Vector3f(MINF, MINF, MINF);
 		}
+#pragma omp parallel for
 		for (int v = 0; v < height; ++v)
 		{
 			normalsTmp[v * width] = Vector3f(MINF, MINF, MINF);
 			normalsTmp[(width - 1) + v * width] = Vector3f(MINF, MINF, MINF);
 		}
 
-		ImageUtil::saveNormalMapToImage((float *)normalsTmp.data(), width, height, std::string("NormalMap_") + std::to_string(level), "Saving normal map...");
+		// ImageUtil::saveNormalMapToImage((float *)normalsTmp.data(), width, height, std::string("NormalMap_") + std::to_string(level), "Saving normal map...");
 
 		// We filter out measurements where either point or normal is invalid.
 		const unsigned nPoints = pointsTmp.size();
