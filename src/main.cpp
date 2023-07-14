@@ -111,11 +111,12 @@ int main()
     int roomDepthMeter = 6;
     float voxelsPerMeter = 40;
     float scale = 1 / voxelsPerMeter;
+    float truncation = 0.125f;
     int numberVoxelsWidth = roomWidthMeter * voxelsPerMeter;
     int numberVoxelsHeight = roomHeightMeter * voxelsPerMeter;
     int numberVoxelsDepth = roomDepthMeter * voxelsPerMeter;
     auto gridGenStart = std::chrono::high_resolution_clock::now();
-    VoxelGrid grid(Vector3f(-3.0, -3.0, -3.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale);
+    VoxelGrid grid(Vector3f(-3.0, -3.0, -3.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
     auto gridGenEnd = std::chrono::high_resolution_clock::now();
     std::cout << "Setting up grid took: " << gridGenEnd - gridGenStart << " ms" << std::endl;
     int idx = 0;
@@ -134,7 +135,7 @@ int main()
             trajectoryOffset = sensor.getTrajectory().inverse();
         }
         idx++;
-        grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 0.125f);
+        grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), truncation);
         
         // Somehow all of this code does not work with the GT trajectory (extrinsics)
         // PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
@@ -142,14 +143,13 @@ int main()
         auto frameComputeEnd = std::chrono::high_resolution_clock::now();
         std::cout << "Computing the frame took: " << std::chrono::duration_cast<std::chrono::milliseconds>(frameComputeEnd - frameComputeStart).count() << " ms" << std::endl;
     }
-
     auto totalComputeStop = std::chrono::high_resolution_clock::now();
     std::cout << "Computing for all frames took: " << std::chrono::duration_cast<std::chrono::milliseconds>(totalComputeStop - totalComputeStart).count() << " ms" << std::endl;
     auto marchingCubesStart = std::chrono::high_resolution_clock::now();
     run_marching_cubes(grid, idx);
     auto marchingCubesStop = std::chrono::high_resolution_clock::now();
     std::cout << "Computing marching cubes took: " << std::chrono::duration_cast<std::chrono::milliseconds>(marchingCubesStop - marchingCubesStart).count() << " ms" << std::endl;
-
-
+    RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
+    ImageUtil::saveNormalMapToImage((float*) raycast.normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("Raycasted TSDF"), "");
     return result;
 }
