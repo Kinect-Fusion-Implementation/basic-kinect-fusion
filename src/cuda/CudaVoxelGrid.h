@@ -26,6 +26,7 @@ private:
     // Thus coordinate (i, j, k) corresponds to linearized index k + max_depth * j + max_depth * max_height * i
     // In our case this is stored in the CUDA GPU Memory
     VoxelData *m_voxelGrid;
+    VoxelData *m_voxelGridCPU;
 
     // Grid is orientied along the world frame axes, but we want to define the area it covers freely by shifting its (0,0) location relative to the world frame
 
@@ -48,6 +49,8 @@ public:
     VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, unsigned int imageHeight, unsigned int imageWidth, float scale);
 
     ~VoxelGrid();
+
+    void sync();
 
     /**
      * Transforms coordinates in the voxel grids (grid indices along each direction (width, height, depth)) into a corresponding point in world coordinates.
@@ -73,3 +76,7 @@ public:
      */
      void raycastVoxelGrid(Matrix4f extrinsics);
 };
+
+VoxelData &getVoxelData(VoxelData *voxelGrid, int w, unsigned int h, unsigned int d, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight);
+
+Vector3f getWorldCoordinates(int x, int y, int z, float offset_x, float offset_y, float offset_z, float spatialVoxelScale);

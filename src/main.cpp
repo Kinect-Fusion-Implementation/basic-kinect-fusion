@@ -11,6 +11,7 @@
 #include "./kinect_fusion/ICPOptimizer.h"
 #include "Test.h"
 #include "CudaVoxelGrid.h"
+#include "../visualization/MarchingCubes.h"
 
 
 int icp_accuracy_test()
@@ -90,27 +91,7 @@ int icp_accuracy_test()
 
 int main()
 {
-    hello();
-    VirtualSensor sensor;
-    bool res = sensor.init(Configuration::getDataSetPath());
-    int roomWidthMeter = 6;
-    int roomHeightMeter = 6;
-    int roomDepthMeter = 6;
-    float voxelsPerMeter = 40;
-    float scale = 1 / voxelsPerMeter;
-    int numberVoxelsWidth = roomWidthMeter * voxelsPerMeter;
-    int numberVoxelsHeight = roomHeightMeter * voxelsPerMeter;
-    int numberVoxelsDepth = roomDepthMeter * voxelsPerMeter;
-    VoxelGrid grid(Vector3f(-3.0, -3.0, -3.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale);
-    float* depth = sensor.getDepth();
-    sensor.processNextFrame();
-    Matrix4f trajectoryOffset = sensor.getTrajectory().inverse();
-    auto tsdfStart = std::chrono::high_resolution_clock::now();
-    grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 0.125f);
-    auto tsdfEnd = std::chrono::high_resolution_clock::now();
-    std::cout << "Computing the tsdf took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(tsdfEnd - tsdfStart).count() << " ns" << std::endl;
     int result = 0;
-    /*
     // return icp_accuracy_test();
     
     VirtualSensor sensor;
@@ -157,7 +138,6 @@ int main()
         }
         idx++;
         grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 0.125f);
-        
         // Somehow all of this code does not work with the GT trajectory (extrinsics)
         // PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
         // const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
@@ -171,7 +151,5 @@ int main()
     run_marching_cubes(grid, idx);
     auto marchingCubesStop = std::chrono::high_resolution_clock::now();
     std::cout << "Computing marching cubes took: " << std::chrono::duration_cast<std::chrono::milliseconds>(marchingCubesStop - marchingCubesStart).count() << " ms" << std::endl;
-
-    */
     return result;
 }

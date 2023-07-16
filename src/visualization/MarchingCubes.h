@@ -410,7 +410,7 @@ int Polygonise(MC_Gridcell grid, float isolevel, MC_Triangle* triangles)
 }
 
 bool processGridCell(VoxelGrid& tsdfGrid, const int x, const int y, const int z, float iso, SimpleMesh* mesh)
-{
+{	
 	MC_Gridcell cell;
 
 	Vector3f tmp;
@@ -483,8 +483,10 @@ void run_marching_cubes(VoxelGrid& tsdfVoxelGrid, int idx)
 {
 	// extract the zero iso-surface using marching cubes
 	SimpleMesh mesh;
-	
-#pragma omp parallel for collapse(3)
+
+	std::cout << "Syncing..." << std::endl;
+	tsdfVoxelGrid.sync();
+	std::cout << "Syncing finished" << std::endl;
 	for (unsigned int w = 0; w < tsdfVoxelGrid.m_numberVoxelsWidth - 1; w++)
 	{
 		for (unsigned int h = 0; h < tsdfVoxelGrid.m_numberVoxelsHeight - 1 - 1; h++)
