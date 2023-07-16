@@ -36,6 +36,7 @@ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsic
 	RaycastImage result = RaycastImage(m_imageWidth, m_imageHeight);
 
 	Matrix4f poseMatrix = extrinsics.inverse();
+	#pragma omp parallel for collapse(2)
 	for (size_t w = 0; w < m_imageWidth; w++)
 	{
 		for (size_t h = 0; h < m_imageHeight; h++)
@@ -56,7 +57,7 @@ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsic
 			Vector3i gridCoordinates = getGridCoordinates(rayPosition);
 			if (gridCoordinates.x() < 0 || gridCoordinates.x() >= m_numberVoxelsWidth || gridCoordinates.y() < 0 || gridCoordinates.y() >= m_numberVoxelsHeight || gridCoordinates.z() < 0 || gridCoordinates.z() >= m_numberVoxelsDepth)
 			{
-				std::cout << "Start position outside of voxel grid";
+				// std::cout << "Start position outside of voxel grid" << std::endl;
 				continue;
 			}
 			float initialTSDFValue = this->getVoxelData(gridCoordinates.x(), gridCoordinates.y(), gridCoordinates.z()).depthAverage;
