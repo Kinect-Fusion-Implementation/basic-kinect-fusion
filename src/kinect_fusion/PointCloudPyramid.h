@@ -121,7 +121,7 @@ private:
 	{
 		// Create row major representation of depth map
 		m_smoothedDepthMap = new float[m_width * m_height];
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
 		for (int v = 0; v < m_height; ++v)
 		{
 			for (int u = 0; u < m_width; ++u)
@@ -141,7 +141,7 @@ private:
 				const int upperLimitHeight = std::min(v + (m_windowSize / 2) + 1, m_height);
 				const int lowerLimitWidth = std::max(u - (m_windowSize / 2), 0);
 				const int upperLimitWidth = std::min(u + (m_windowSize / 2) + 1, m_width);
-
+				#pragma omp parallel for collapse(2)
 				// Compute bilinear smoothing
 				for (int y = lowerLimitHeight; y < upperLimitHeight; ++y)
 				{

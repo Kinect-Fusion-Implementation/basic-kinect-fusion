@@ -121,7 +121,7 @@ int main()
     VoxelGrid grid(Vector3f(-3.0, -3.0, -3.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
 #if EVAL_MODE == ON
     auto gridGenEnd = std::chrono::high_resolution_clock::now();
-    std::cout << "Setting up grid took: " << gridGenEnd - gridGenStart << " ms" << std::endl;
+    std::cout << "Setting up grid took: " << std::chrono::duration_cast<std::chrono::milliseconds>(gridGenEnd - gridGenStart).count() << " ms" << std::endl;
 #endif
     int idx = 0;
     Matrix4f trajectoryOffset;
@@ -167,13 +167,11 @@ int main()
     std::cout << "Computing marching cubes took: " << std::chrono::duration_cast<std::chrono::milliseconds>(marchingCubesStop - marchingCubesStart).count() << " ms" << std::endl;
     auto raycastStart = std::chrono::high_resolution_clock::now();
 #endif
-    /*
     RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
 #if EVAL_MODE == ON
     auto raycastStop = std::chrono::high_resolution_clock::now();
     std::cout << "Computing raycasting took: " << std::chrono::duration_cast<std::chrono::milliseconds>(raycastStop - raycastStart).count() << " ms" << std::endl;
 #endif
-    */
     // ImageUtil::saveNormalMapToImage((float*) raycast.normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("Raycasted TSDF"), "");
     return result;
 }

@@ -484,10 +484,9 @@ void run_marching_cubes(VoxelGrid& tsdfVoxelGrid, int idx)
 	// extract the zero iso-surface using marching cubes
 	SimpleMesh mesh;
 	
-#pragma omp parallel for collapse(3)
 	for (unsigned int w = 0; w < tsdfVoxelGrid.m_numberVoxelsWidth - 1; w++)
 	{
-		for (unsigned int h = 0; h < tsdfVoxelGrid.m_numberVoxelsHeight - 1 - 1; h++)
+		for (unsigned int h = 0; h < tsdfVoxelGrid.m_numberVoxelsHeight - 1; h++)
 		{
 			for (unsigned int d = 0; d < tsdfVoxelGrid.m_numberVoxelsDepth - 1; d++)
 			{
@@ -496,7 +495,7 @@ void run_marching_cubes(VoxelGrid& tsdfVoxelGrid, int idx)
 		}
 	}
 
-	std::string filenameOut = Configuration::getOutputDirectory() + "/kinect_mesh_" + std::to_string(idx) + ".off";
+	std::string filenameOut = Configuration::getOutputDirectory() + "kinect_mesh_" + std::to_string(idx) + ".off";
 	// write mesh to file
 	if (!mesh.WriteMesh(filenameOut))
 	{
