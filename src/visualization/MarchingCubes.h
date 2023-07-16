@@ -1,7 +1,7 @@
 #pragma once
 
 #include "SimpleMesh.h"
-#include "../kinect_fusion/VoxelGrid.h"
+#include "../cuda/CudaVoxelGrid.h"
 #include "../configuration/Configuration.h"
 
 struct MC_Triangle

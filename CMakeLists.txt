@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.8)
 
 set(CMAKE_CONFIGURATION_TYPES Debug Release CACHE TYPE INTERNAL FORCE)
 
-project(kinect_fusion)
+project(kinect_fusion LANGUAGES CXX CUDA)
 
 # Options
 set(LIBRARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../Libs CACHE PATH "Path to lib folder")
@@ -46,12 +46,16 @@ set(SourceCode_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src CACHE PATH "Path to source co
 set(CoreCode_DIR kinect_fusion CACHE PATH "Directory of the kinect fusion core code") 
 set(Configuration_DIR configuration CACHE PATH "Directory for configuration files") 
 set(Sensor_DIR sensor CACHE PATH "Directory for configuration files") 
-set(Visualization_DIR visualization CACHE PATH "Directory for configuration files") 
+set(Visualization_DIR visualization CACHE PATH "Directory for configuration files")
+
+# RTX 3060 ti - GPU
+set(CMAKE_CUDA_ARCHITECTURES 86)
+add_subdirectory(./src/cuda)
+
 
 set(HEADER_FILES 
     ${SourceCode_DIR}/${CoreCode_DIR}/Eigen.h 
     ${SourceCode_DIR}/${CoreCode_DIR}/PointCloud.h 
-    ${SourceCode_DIR}/${CoreCode_DIR}/VoxelGrid.h
     ${SourceCode_DIR}/${CoreCode_DIR}/ICPOptimizer.h 
     ${SourceCode_DIR}/${Sensor_DIR}/VirtualSensor.h
     ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.h
@@ -61,15 +65,14 @@ set(HEADER_FILES
 )
 
 set(SOURCE_FILES 
-    ${SourceCode_DIR}/${CoreCode_DIR}/VoxelGrid.cpp
     ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.cpp
     ${SourceCode_DIR}/${Configuration_DIR}/Configuration.cpp
 )
 
 link_directories(${FreeImage_LIBRARY_DIR})
 add_executable(kinect_fusion ${SourceCode_DIR}/main.cpp ${HEADER_FILES} ${SOURCE_FILES})
-target_link_libraries(kinect_fusion ceres freeimage Eigen3::Eigen)
-target_include_directories(kinect_fusion PUBLIC ${EIGEN3_INCLUDE_DIR} ${FreeImage_INCLUDE_DIR} ${Flann_INCLUDE_DIR})
+target_link_libraries(kinect_fusion ceres freeimage Eigen3::Eigen Kinect_CUDA)
+target_include_directories(kinect_fusion PUBLIC ${EIGEN3_INCLUDE_DIR} ${FreeImage_INCLUDE_DIR} ${Flann_INCLUDE_DIR} ${SourceCode_DIR}/${CoreCode_DIR} ./src/cuda)
 
 # On Windows copy dll to executable folder
 if(WIN32)

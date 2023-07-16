@@ -5,7 +5,7 @@
 #include <cstring>
 #include <fstream>
 
-#include "../kinect_fusion/Eigen.h"
+#include "Eigen.h"
 #include "../visualization/FreeImageHelper.h"
 
 typedef unsigned char BYTE;
