@@ -115,42 +115,65 @@ int main()
     int numberVoxelsWidth = roomWidthMeter * voxelsPerMeter;
     int numberVoxelsHeight = roomHeightMeter * voxelsPerMeter;
     int numberVoxelsDepth = roomDepthMeter * voxelsPerMeter;
+#if EVAL_MODE == ON
     auto gridGenStart = std::chrono::high_resolution_clock::now();
+#endif
     VoxelGrid grid(Vector3f(-3.0, -3.0, -3.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
+#if EVAL_MODE == ON
     auto gridGenEnd = std::chrono::high_resolution_clock::now();
     std::cout << "Setting up grid took: " << gridGenEnd - gridGenStart << " ms" << std::endl;
+#endif
     int idx = 0;
     Matrix4f trajectoryOffset;
-    
+#if EVAL_MODE == ON
     auto totalComputeStart = std::chrono::high_resolution_clock::now();
+#endif
     while (sensor.processNextFrame())
     {
         auto frameComputeStart = std::chrono::high_resolution_clock::now();
-        float* depth = sensor.getDepth();
+        float *depth = sensor.getDepth();
         // Trajectory:       world -> view space (Extrinsics)
         // InvTrajectory:    view -> world space (Pose)
 
-        if (idx == 0) {
+        if (idx == 0)
+        {
             // We express our world space based on the first trajectory (we set the first trajectory to eye matrix, and express all further camera positions relative to that first camera position)
             trajectoryOffset = sensor.getTrajectory().inverse();
         }
         idx++;
         grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), truncation);
-        
-        // Somehow all of this code does not work with the GT trajectory (extrinsics)
-        // PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
+
+#if EVAL_MODE == ON
+        auto pyramidComputeStart = std::chrono::high_resolution_clock::now();
+#endif
+        PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
+#if EVAL_MODE == ON
+        auto pyramidComputeEnd = std::chrono::high_resolution_clock::now();
+        std::cout << "Computing the pyramid took: " << std::chrono::duration_cast<std::chrono::milliseconds>(pyramidComputeEnd - pyramidComputeStart).count() << " ms" << std::endl;
+#endif
         // const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
         auto frameComputeEnd = std::chrono::high_resolution_clock::now();
         std::cout << "Computing the frame took: " << std::chrono::duration_cast<std::chrono::milliseconds>(frameComputeEnd - frameComputeStart).count() << " ms" << std::endl;
         break;
     }
+#if EVAL_MODE == ON
     auto totalComputeStop = std::chrono::high_resolution_clock::now();
     std::cout << "Computing for all frames took: " << std::chrono::duration_cast<std::chrono::milliseconds>(totalComputeStop - totalComputeStart).count() << " ms" << std::endl;
     auto marchingCubesStart = std::chrono::high_resolution_clock::now();
+#endif
     run_marching_cubes(grid, idx);
+#if EVAL_MODE == ON
     auto marchingCubesStop = std::chrono::high_resolution_clock::now();
     std::cout << "Computing marching cubes took: " << std::chrono::duration_cast<std::chrono::milliseconds>(marchingCubesStop - marchingCubesStart).count() << " ms" << std::endl;
+    auto raycastStart = std::chrono::high_resolution_clock::now();
+#endif
+    /*
     RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
+#if EVAL_MODE == ON
+    auto raycastStop = std::chrono::high_resolution_clock::now();
+    std::cout << "Computing raycasting took: " << std::chrono::duration_cast<std::chrono::milliseconds>(raycastStop - raycastStart).count() << " ms" << std::endl;
+#endif
+    */
     // ImageUtil::saveNormalMapToImage((float*) raycast.normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("Raycasted TSDF"), "");
     return result;
 }

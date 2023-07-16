@@ -34,6 +34,9 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 
+set(EVAL_MODE ON CACHE BOOL "Enables time measurement code and prints")
+add_compile_definitions(EVAL_MODE=${EVAL_MODE})
+
 #find_package(nanoflann REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(glog REQUIRED)
