@@ -65,8 +65,9 @@ public:
 		auto smoothDepthMapEnd = std::chrono::high_resolution_clock::now();
 		std::cout << "Computing the smoothed depth map took: " << std::chrono::duration_cast<std::chrono::milliseconds>(smoothDepthMapEnd - smoothDepthMapStart).count() << " ms" << std::endl;
 #endif
-		// ImageUtil::saveDepthMapToImage(m_smoothedDepthMap, m_width, m_height, "SmoothedDepthMap", "Saving smoothed depth map...");
-
+#if SAVE_IMAGE_MODE 
+		ImageUtil::saveDepthMapToImage(m_smoothedDepthMap, m_width, m_height, "SmoothedDepthMap", "Saving smoothed depth map...");
+#endif
 		// Setup of pyramid
 		float *currentDepthMap = m_smoothedDepthMap;
 		pointClouds.reserve(levels + 1);
@@ -94,8 +95,9 @@ public:
 #endif
 			i++;
 			// Print subsampled depth map to file
-			// ImageUtil::saveDepthMapToImage(currentDepthMap, m_width >> i, m_height >> i, std::string("SubsampledDepthMap_") + std::to_string(i), "Saving subsampled depthmap...");
-
+#if SAVE_IMAGE_MODE 
+			ImageUtil::saveDepthMapToImage(currentDepthMap, m_width >> i, m_height >> i, std::string("SubsampledDepthMap_") + std::to_string(i), "Saving subsampled depthmap...");
+#endif
 			// Store subsampled depth map in pyramid
 #if EVAL_MODE
 			auto constructPointCloudStart = std::chrono::high_resolution_clock::now();

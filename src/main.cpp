@@ -8,9 +8,10 @@
 #include "./kinect_fusion/PointCloud.h"
 #include "./kinect_fusion/VoxelGrid.h"
 #include "./kinect_fusion/PointCloudPyramid.h"
+#include "./kinect_fusion/ICPOptimizer.h"
 #include "./configuration/Configuration.h"
 #include "./visualization/MarchingCubes.h"
-#include "./kinect_fusion/ICPOptimizer.h"
+#include "./visualization/PointCloudToMesh.h"
 
 int icp_accuracy_test()
 {
@@ -109,7 +110,7 @@ int main()
     int roomWidthMeter = 6;
     int roomHeightMeter = 6;
     int roomDepthMeter = 6;
-    float voxelsPerMeter = 40;
+    float voxelsPerMeter = 100;
     float scale = 1 / voxelsPerMeter;
     float truncation = 0.125f;
     int numberVoxelsWidth = roomWidthMeter * voxelsPerMeter;
@@ -118,7 +119,7 @@ int main()
 #if EVAL_MODE
     auto gridGenStart = std::chrono::high_resolution_clock::now();
 #endif
-    VoxelGrid grid(Vector3f(-3.0, -3.0, -3.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
+    VoxelGrid grid(Vector3f(-2.0, -1.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
 #if EVAL_MODE
     auto gridGenEnd = std::chrono::high_resolution_clock::now();
     std::cout << "Setting up grid took: " << std::chrono::duration_cast<std::chrono::milliseconds>(gridGenEnd - gridGenStart).count() << " ms" << std::endl;
@@ -154,10 +155,16 @@ int main()
 #if EVAL_MODE
         auto pyramidComputeEnd = std::chrono::high_resolution_clock::now();
         std::cout << "Computing the pyramid took: " << std::chrono::duration_cast<std::chrono::milliseconds>(pyramidComputeEnd - pyramidComputeStart).count() << " ms" << std::endl;
-        // const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
+        const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
         auto raycastStart = std::chrono::high_resolution_clock::now();
 #endif
         RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
+#if SAVE_IMAGE_MODE
+        if(idx % 50 == 0 || idx > 70 && idx < 100) {
+            ImageUtil::saveNormalMapToImage((float*) raycast.normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("RaycastedImage_") + std::to_string(idx), "");
+            writeMesh(raycast.vertexMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), Configuration::getOutputDirectory() + "mesh_" + std::to_string(idx) + ".off");
+        }
+#endif
 #if EVAL_MODE
         auto raycastStop = std::chrono::high_resolution_clock::now();
         auto frameComputeEnd = std::chrono::high_resolution_clock::now();
@@ -168,12 +175,11 @@ int main()
 
     auto totalComputeStop = std::chrono::high_resolution_clock::now();
     std::cout << "Computing for all frames took: " << std::chrono::duration_cast<std::chrono::milliseconds>(totalComputeStop - totalComputeStart).count() << " ms" << std::endl;
+#if SAVE_IMAGE_MODE
     auto marchingCubesStart = std::chrono::high_resolution_clock::now();
     run_marching_cubes(grid, idx);
-#if EVAL_MODE
     auto marchingCubesStop = std::chrono::high_resolution_clock::now();
     std::cout << "Computing marching cubes took: " << std::chrono::duration_cast<std::chrono::milliseconds>(marchingCubesStop - marchingCubesStart).count() << " ms" << std::endl;
 #endif
-    // ImageUtil::saveNormalMapToImage((float*) raycast.normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("Raycasted TSDF"), "");
     return result;
 }

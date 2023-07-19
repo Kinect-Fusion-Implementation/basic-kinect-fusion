@@ -21,7 +21,7 @@ Vector3f VoxelGrid::getCellCenterInWorldCoords(Vector3i gridCell)
 
 Vector3i VoxelGrid::getGridCoordinates(Vector3f worldCoordinates)
 {
-	Vector3f coordinates = worldCoordinates + m_gridOriginOffset;
+	Vector3f coordinates = worldCoordinates - m_gridOriginOffset;
 	coordinates = coordinates / m_spatialVoxelScale;
 	return Vector3i(int(coordinates.x()), int(coordinates.y()), int(coordinates.z()));
 }
@@ -36,6 +36,7 @@ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsic
 	RaycastImage result = RaycastImage(m_imageWidth, m_imageHeight);
 
 	Matrix4f poseMatrix = extrinsics.inverse();
+
 	#pragma omp parallel for collapse(2)
 	for (size_t w = 0; w < m_imageWidth; w++)
 	{
@@ -57,7 +58,7 @@ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsic
 			Vector3i gridCoordinates = getGridCoordinates(rayPosition);
 			if (gridCoordinates.x() < 0 || gridCoordinates.x() >= m_numberVoxelsWidth || gridCoordinates.y() < 0 || gridCoordinates.y() >= m_numberVoxelsHeight || gridCoordinates.z() < 0 || gridCoordinates.z() >= m_numberVoxelsDepth)
 			{
-				// std::cout << "Start position outside of voxel grid" << std::endl;
+				std::cout << "Start position outside of voxel grid" << std::endl;
 				continue;
 			}
 			float initialTSDFValue = this->getVoxelData(gridCoordinates.x(), gridCoordinates.y(), gridCoordinates.z()).depthAverage;
@@ -72,7 +73,7 @@ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsic
 				// We assume that we are in the volume
 				if (gridCoordinates.x() < 0 || gridCoordinates.x() >= m_numberVoxelsWidth || gridCoordinates.y() < 0 || gridCoordinates.y() >= m_numberVoxelsHeight || gridCoordinates.z() < 0 || gridCoordinates.z() >= m_numberVoxelsDepth)
 				{
-					std::cout << "Outside of voxel grid";
+					// std::cout << "Outside of voxel grid";
 					break;
 				}
 				// Set up next step
@@ -91,22 +92,31 @@ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsic
 				distanceTravelled += stepSize;
 				Vector3f newRayPosition = rayPosition + stepSize * rayDirection;
 				Vector3i newGridCoordinates = getGridCoordinates(newRayPosition);
+				if (newGridCoordinates.x() < 0 || newGridCoordinates.x() >= m_numberVoxelsWidth || newGridCoordinates.y() < 0 || newGridCoordinates.y() >= m_numberVoxelsHeight || newGridCoordinates.z() < 0 || newGridCoordinates.z() >= m_numberVoxelsDepth)
+				{
+					break;
+				}
 				float newTSDFValue = this->getVoxelData(newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z()).depthAverage;
 				if (newTSDFValue < 0)
 				{
 					// Interpolation formula page 6 in the paper
 					float interpolatedStepSize = stepSize * (currentTSDFValue / (currentTSDFValue - newTSDFValue));
 					rayPosition = rayPosition + interpolatedStepSize * rayDirection;
-					result.vertexMap[w + h * m_imageWidth] = rayPosition;
 					newGridCoordinates = getGridCoordinates(rayPosition);
 					float depthValue = getVoxelData(newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z()).depthAverage;
 					// On average the distance between measurements is the distance of voxel centers -> the voxel scale 
 					// Here we could definitely improve on accuracy
 					float deltaH = m_spatialVoxelScale;
+					if (newGridCoordinates.x() + 1 >= m_numberVoxelsWidth || newGridCoordinates.y() + 1 >= m_numberVoxelsHeight || newGridCoordinates.z() + 1 >= m_numberVoxelsDepth)
+					{
+						break;
+					}
+					result.vertexMap[w + h * m_imageWidth] = rayPosition;
 					float deltaX = (getVoxelData(newGridCoordinates.x() + 1, newGridCoordinates.y(), newGridCoordinates.z()).depthAverage - depthValue);
 					float deltaY = (getVoxelData(newGridCoordinates.x(), newGridCoordinates.y() + 1, newGridCoordinates.z()).depthAverage - depthValue);
 					float deltaZ = (getVoxelData(newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z() + 1).depthAverage - depthValue);
-					result.normalMap[w + h * m_imageWidth] = Vector3f(deltaX / deltaH, deltaY / deltaH, deltaZ / deltaH);
+					result.normalMap[w + h * m_imageWidth] = extrinsics.block<3,3>(0,0) * Vector3f(deltaX / deltaH, deltaY / deltaH, deltaZ / deltaH);
+	
 					// For now we just normalize these...
 					result.normalMap[w + h * m_imageWidth].normalize();
 					break;

@@ -72,7 +72,7 @@ public:
 				}
 
 				// TODO: Compute the normals using central differences.
-				normalsTmp[idx] = (pointsTmp[idx + 1] - pointsTmp[idx - 1]).cross(pointsTmp[idx + width] - pointsTmp[idx - width]); // Needs to be replaced.
+				normalsTmp[idx] = (pointsTmp[idx + width] - pointsTmp[idx - width]).cross(pointsTmp[idx + 1] - pointsTmp[idx - 1]);
 				normalsTmp[idx].normalize();
 			}
 		}
@@ -91,9 +91,9 @@ public:
 			normalsTmp[v * width] = Vector3f(MINF, MINF, MINF);
 			normalsTmp[(width - 1) + v * width] = Vector3f(MINF, MINF, MINF);
 		}
-
-		// ImageUtil::saveNormalMapToImage((float *)normalsTmp.data(), width, height, std::string("NormalMap_") + std::to_string(level), "Saving normal map...");
-
+#if SAVE_IMAGE_MODE 
+		ImageUtil::saveNormalMapToImage((float *)normalsTmp.data(), width, height, std::string("NormalMap_") + std::to_string(level), "Saving normal map...");
+#endif
 		// We filter out measurements where either point or normal is invalid.
 		const unsigned nPoints = pointsTmp.size();
 		m_points.reserve(std::floor(float(nPoints)));

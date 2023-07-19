@@ -40,6 +40,13 @@ if (EVAL_MODE)
 else()
     add_compile_definitions(EVAL_MODE=false)
 endif()
+set(SAVE_IMAGE_MODE ON CACHE BOOL "Enables the storing of different Images.")
+if (SAVE_IMAGE_MODE)
+    add_compile_definitions(SAVE_IMAGE_MODE=true)
+else()
+    add_compile_definitions(SAVE_IMAGE_MODE=false)
+endif()
+
 #find_package(nanoflann REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(glog REQUIRED)
@@ -62,6 +69,7 @@ set(HEADER_FILES
     ${SourceCode_DIR}/${Sensor_DIR}/VirtualSensor.h
     ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.h
     ${SourceCode_DIR}/${Visualization_DIR}/MarchingCubes.h
+    ${SourceCode_DIR}/${Visualization_DIR}/PointCloudToMesh.h
     ${SourceCode_DIR}/${Visualization_DIR}/SimpleMesh.h
     ${SourceCode_DIR}/${Configuration_DIR}/Configuration.h
 )
@@ -70,6 +78,7 @@ set(SOURCE_FILES
     ${SourceCode_DIR}/${CoreCode_DIR}/VoxelGrid.cpp
     ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.cpp
     ${SourceCode_DIR}/${Configuration_DIR}/Configuration.cpp
+    ${SourceCode_DIR}/${Visualization_DIR}/PointCloudToMesh.cpp
 )
 
 link_directories(${FreeImage_LIBRARY_DIR})

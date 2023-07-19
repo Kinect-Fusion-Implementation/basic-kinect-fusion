@@ -455,7 +455,6 @@ void ImageUtil::saveDepthMapToImage(float *map, int width, int height, std::stri
 	FreeImage image(width, height, 1);
 	image.data = map;
 	std::cout << message << std::endl;
-	// Dominik: std::string fileName("./Output/" + fileName);
 	std::string pathToFile(Configuration::getOutputDirectory() + fileName);
 	image.SaveDepthMapToFile(pathToFile + ".png");
 }
@@ -465,7 +464,6 @@ void ImageUtil::saveNormalMapToImage(float *map, int width, int height, std::str
 	FreeImage image(width, height, 3);
 	image.data = map;
 	std::cout << message << std::endl;
-	// Dominik: std::string fileName("./Output/" + fileName);
 	std::string pathToFile(Configuration::getOutputDirectory() + fileName);
 	image.SaveImageToFile(pathToFile + ".png");
 }
