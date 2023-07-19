@@ -51,15 +51,18 @@ public:
         for (int i = sourcePointClouds.size() - 1; i >= 0; i--) {
             std::cout << "Level: " << i << std::endl;
             // Adjust camera matrix for current level of pyramid
-            Matrix3f currentCameraMatrix = m_cameraMatrix / pow(2, i);
-            currentCameraMatrix(2, 2) = 1;
-            int width = std::floor(m_width / pow(2, i));
-            int height = std::floor(m_height / pow(2, i));
+            //Matrix3f currentCameraMatrix = m_cameraMatrix / pow(2, i);
+            //currentCameraMatrix(2, 2) = 1;
+            Matrix3f currentCameraMatrix = m_cameraMatrix;
+            //int width = std::floor(m_width / pow(2, i));
+            //int height = std::floor(m_height / pow(2, i));
+            int width = m_width;
+            int height = m_height;
             std::cout << "Current Camera Matrix: " << std::endl << currentCameraMatrix << std::endl;
             std::cout << "Current Width: " << width << std::endl;
             std::cout << "Current Height: " << height << std::endl;
             for (unsigned int k = 0; k < m_iterations_per_level[i]; k++) {
-                std::vector<std::tuple<Vector3f, Vector3f, Vector3f>> correspondances = findCorrespondances(sourcePointClouds[i], targetPointClouds[i], currentToPreviousFrame, prevFrameToGlobal, currentCameraMatrix, width, height);
+                std::vector<std::tuple<Vector3f, Vector3f, Vector3f>> correspondances = findCorrespondances(sourcePointClouds[0], targetPointClouds[i], currentToPreviousFrame, prevFrameToGlobal, currentCameraMatrix, width, height);
                 // TODO: Check if enough correspondances were found
                 std::cout << "Level: " << i << " Iteration: " << k << std::endl;
                 std::cout << "Number of correspondances: " << correspondances.size() << std::endl;
