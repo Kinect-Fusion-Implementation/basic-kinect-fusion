@@ -14,6 +14,11 @@ std::string Configuration::getDataSetPath()
 	{
 		dataSetPath = "../../../Data/rgbd_dataset_freiburg1_xyz/";
 	}
+
+	if (USERNAME == std::string("lisa"))
+	{
+		dataSetPath = "/home/lisa/cv_datasets/rgbd_dataset_freiburg1_xyz/";
+	}
 	return dataSetPath;
 }
 
@@ -22,11 +27,15 @@ std::string Configuration::getOutputDirectory()
 	std::string outputDirectory;
 	if (USERNAME == std::string("dominik"))
 	{
-		outputDirectory = "./Output/";
+		outputDirectory = "./Output";
 	}
 	if (USERNAME == std::string("helga"))
 	{
-		outputDirectory = "../Output/";
+		outputDirectory = "../Output";
+	}
+		if (USERNAME == std::string("lisa"))
+	{
+		outputDirectory = "./Output";
 	}
 	return outputDirectory;
 }

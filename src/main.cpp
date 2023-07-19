@@ -6,12 +6,14 @@
 #include "./kinect_fusion/Eigen.h"
 #include "./kinect_fusion/ICPOptimizer.h"
 #include "./kinect_fusion/PointCloud.h"
-#include "./kinect_fusion/VoxelGrid.h"
 #include "./kinect_fusion/PointCloudPyramid.h"
 #include "./kinect_fusion/ICPOptimizer.h"
 #include "./configuration/Configuration.h"
-#include "./visualization/MarchingCubes.h"
+#include "./kinect_fusion/ICPOptimizer.h"
+#include "CudaVoxelGrid.h"
+#include "../visualization/MarchingCubes.h"
 #include "./visualization/PointCloudToMesh.h"
+
 
 int icp_accuracy_test()
 {
@@ -90,8 +92,9 @@ int icp_accuracy_test()
 
 int main()
 {
-    // return icp_accuracy_test();
     int result = 0;
+    // return icp_accuracy_test();
+    
     VirtualSensor sensor;
     sensor.init(Configuration::getDataSetPath());
 
