@@ -13,7 +13,7 @@
 
 class ICPOptimizer {
 public:
-    ICPOptimizer(VirtualSensor& virtualSensor, float vertex_diff_threshold, float normal_diff_threshold, std::vector<int>& iterations_per_level) {
+    ICPOptimizer(VirtualSensor& virtualSensor, float vertex_diff_threshold, float normal_diff_threshold, std::vector<int>& iterations_per_level, float pointToPointWeight = 0.5) {
         // Initialized with Camera Matrix and threshold values. These should stay the same for all iterations and frames
         m_cameraMatrix =  virtualSensor.getDepthIntrinsics();
         m_width = virtualSensor.getDepthImageWidth();
@@ -55,7 +55,6 @@ public:
             currentCameraMatrix(2, 2) = 1;
             int width = std::floor(m_width / pow(2, i));
             int height = std::floor(m_height / pow(2, i));
-            // FIXME: Check Camera Matrix + width
             std::cout << "Current Camera Matrix: " << std::endl << currentCameraMatrix << std::endl;
             std::cout << "Current Width: " << width << std::endl;
             std::cout << "Current Height: " << height << std::endl;
@@ -64,7 +63,7 @@ public:
                 // TODO: Check if enough correspondances were found
                 std::cout << "Level: " << i << " Iteration: " << k << std::endl;
                 std::cout << "Number of correspondances: " << correspondances.size() << std::endl;
-                Matrix4f inc = pointToPlaneICP(correspondances, prevFrameToGlobal, currentToPreviousFrame);
+                Matrix4f inc = pointToPointAndPlaneICP(correspondances, prevFrameToGlobal, currentToPreviousFrame);
                 std::cout << "Incremental Matrix: " << std::endl << inc << std::endl;
                 std::cout << "Incremental Matrix det: " << std::endl << inc.determinant() << std::endl;
                 std::cout << "Incremental Matrix norm: " << std::endl << inc.norm() << std::endl;
@@ -85,10 +84,12 @@ private:
     float m_normal_diff_threshold;
     // Number of iterations per level
     std::vector<int> m_iterations_per_level;
+    // Weight for point to point correspondances
+    float m_pointToPointWeight;
 
     // ---- Point to Plane ICP ----
 
-    Matrix4f pointToPlaneICP(const std::vector<std::tuple<Vector3f, Vector3f, Vector3f>>& correspondences, const Matrix4f& globalToPreviousFrame, const Matrix4f& currentToPreviousFrame) {
+    Matrix4f pointToPointAndPlaneICP(const std::vector<std::tuple<Vector3f, Vector3f, Vector3f>>& correspondences, const Matrix4f& globalToPreviousFrame, const Matrix4f& currentToPreviousFrame) {
         Matrix4f output = Matrix4f::Identity();
 
         // designMatrix contains sum of A_t * A matrices
@@ -97,19 +98,27 @@ private:
         // designVector contains sum of A_t * b vectors
         Eigen::Matrix<float, 6, 1> designVector = Eigen::Matrix<float, 6, 1>::Zero();
 
+        // --------- CUDAAAAAAAAAAA -----------
         for (unsigned int i = 0; i < correspondences.size(); i++) {
             // SourceVertex -> V_k, TargetVertex -> V_k-1, TargetNormal -> N_k-1
             Vector3f currVertex = currentToPreviousFrame.block<3, 3>(0, 0) * std::get<0>(correspondences[i]) + currentToPreviousFrame.block<3, 1>(0, 3);
             Vector3f prevVertex = std::get<1>(correspondences[i]);
             Vector3f prevNormal = std::get<2>(correspondences[i]);
 
-            // Build summand matrix and vector for current correspondance
-            std::tuple<Eigen::Matrix<float, 6, 6>, Eigen::Matrix<float, 6, 1>> system = buildSummandMatrixAndVector(
+            // Construct Linear System to solve
+            // Build summand point to point matrix and vector for current correspondance
+            if (m_pointToPointWeight > 0) {
+                std::tuple<Eigen::Matrix<float, 6, 6>, Eigen::Matrix<float, 6, 1>> pointSystem = buildPointToPointErrorSystem(
+                        currVertex, prevVertex, prevNormal);
+                designMatrix += m_pointToPointWeight * std::get<0>(pointSystem);
+                designVector += m_pointToPointWeight * std::get<1>(pointSystem);
+            }
+
+            // Build summand point to plane matrix and vector for current correspondance
+            std::tuple<Eigen::Matrix<float, 6, 6>, Eigen::Matrix<float, 6, 1>> planeSystem = buildPointToPlaneErrorSystem(
                     currVertex, prevVertex, prevNormal);
-
-            designMatrix += std::get<0>(system);
-            designVector += std::get<1>(system);
-
+            designMatrix += (1-m_pointToPointWeight) * std::get<0>(planeSystem);
+            designVector += (1-m_pointToPointWeight) * std::get<1>(planeSystem);
         }
         // solution -> (beta, gamma, alpha, tx, ty, tz)
         Eigen::Matrix<float, 6, 1> solution = (designMatrix.llt()).solve(designVector);
@@ -120,12 +129,11 @@ private:
         return output;
     }
 
-    std::tuple<Eigen::Matrix<float, 6, 6>, Eigen::Matrix<float, 6, 1>> buildSummandMatrixAndVector(Vector3f& sourceVertex, Vector3f& targetVertex, Vector3f& targetNormal) {
+    std::tuple<Eigen::Matrix<float, 6, 6>, Eigen::Matrix<float, 6, 1>> buildPointToPlaneErrorSystem(Vector3f& sourceVertex, Vector3f& targetVertex, Vector3f& targetNormal) {
         // Returns the solution of the system of equations for point to plane ICP for one summand of the cost function
         // SourceVertex -> V_k, TargetVertex -> V_k-1, TargetNormal -> N_k-1
 
         // solution -> (beta, gamma, alpha, tx, ty, tz)
-        Eigen::Matrix<float, 6, 1> solution = Eigen::Matrix<float, 6, 1>::Zero();
         // G contains  the skew-symmetric matrix form of the sourceVertex | FIXME: Add .cross to calcualte skew-symmetric matrix
         // For vector (beta, gamma, alpha, tx, ty, tz) the skew-symmetric matrix form is:
         Eigen::Matrix<float, 3, 6> G;
@@ -142,6 +150,27 @@ private:
         return std::make_tuple(A_tA, b);
     }
 
+    std::tuple<Eigen::Matrix<float, 6, 6>, Eigen::Matrix<float, 6, 1>> buildPointToPointErrorSystem(Vector3f& sourceVertex, Vector3f& targetVertex, Vector3f& targetNormal) {
+        // Returns the solution of the system of equations for point to point ICP for one summand of the cost function
+        // SourceVertex -> V_k, TargetVertex -> V_k-1, TargetNormal -> N_k-1
+
+        // solution -> (beta, gamma, alpha, tx, ty, tz)
+        // G contains  the skew-symmetric matrix form of the sourceVertex | FIXME: Add .cross to calcualte skew-symmetric matrix
+        // For vector (beta, gamma, alpha, tx, ty, tz) the skew-symmetric matrix form is:
+        Eigen::Matrix<float, 3, 6> G;
+        G <<    0, -sourceVertex(2), sourceVertex(1), 1, 0, 0,
+                sourceVertex(2), 0, -sourceVertex(0), 0, 1, 0,
+                -sourceVertex(1), sourceVertex(0), 0, 0, 0, 1;
+
+        // A contains the dot product of the skew-symmetric matrix form of the sourceVertex and the targetNormal and is the matrix we are optimizing over
+        Eigen::Matrix<float, 6, 3> A_t = G.transpose();
+        Eigen::Matrix<float, 6, 6> A_tA = A_t * A_t.transpose();
+        // b contains the dot product of the targetNormal and the difference between the targetVertex and the sourceVertex
+        Eigen::Matrix<float, 6, 1> b = A_t * (targetVertex - sourceVertex);
+
+        return std::make_tuple(A_tA, b);
+    }
+
 
 
     // ---- Correspondance Search ----
@@ -149,6 +178,7 @@ private:
         // Return correspondences i.e. V_k, N_k, V_k-1
         std::vector<std::tuple<Vector3f, Vector3f, Vector3f>> correspondences;
 
+        // --------- CUDAAAAAAAAAAA -----------
         for (unsigned int i = 0; i < currentPointCloud.getPoints().size(); i++) {
             Vector3f currentVertex = currentPointCloud.getPoints()[i];
             Vector3f currentNormal = currentPointCloud.getNormals()[i];
