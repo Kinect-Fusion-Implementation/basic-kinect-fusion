@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <iostream>
 
-__host__ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, unsigned int imageHeight, unsigned int imageWidth, float scale) : m_gridOriginOffset(gridOrigin.x(), gridOrigin.y(), gridOrigin.z()), m_numberVoxelsWidth(numberVoxelsWidth), m_numberVoxelsDepth(numberVoxelsDepth), m_numberVoxelsHeight(numberVoxelsHeight), m_imageHeight(imageHeight), m_imageWidth(imageWidth), m_spatialVoxelScale(scale)
+__host__ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, unsigned int imageHeight, unsigned int imageWidth, float scale, float truncation) : m_gridOriginOffset(gridOrigin.x(), gridOrigin.y(), gridOrigin.z()), m_numberVoxelsWidth(numberVoxelsWidth), m_numberVoxelsDepth(numberVoxelsDepth), m_numberVoxelsHeight(numberVoxelsHeight), m_imageHeight(imageHeight), m_imageWidth(imageWidth), m_spatialVoxelScale(scale), m_truncation(truncation)
 {
 	std::cout << "Setting up grid" << std::endl;
 	unsigned long long numberVoxels = m_numberVoxelsWidth * m_numberVoxelsDepth * m_numberVoxelsHeight;
@@ -95,7 +95,7 @@ __device__ VoxelData &getVoxelData(VoxelData *voxelGrid, int w, unsigned int h, 
 	return voxelGrid[d + numberVoxelsDepth * h + numberVoxelsDepth * numberVoxelsHeight * w];
 }
 
-__host__ void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, float *depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight, float truncation)
+__host__ void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, float *depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight)
 {
 	// Assume 240x240x240
 	dim3 threadBlocks(20, 20);
@@ -104,12 +104,12 @@ __host__ void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, fl
 	cudaMalloc(&depthDataGPU, sizeof(float) * depthMapWidth * depthMapHeight);
 	cudaMemcpy(depthDataGPU, depthMap, sizeof(float) * depthMapWidth * depthMapHeight, cudaMemcpyHostToDevice);
 
-	updateTSDFKernel<<<blocks, threadBlocks>>>(extrinsics, intrinsics, depthDataGPU, depthMapWidth, depthMapHeight, truncation, this->m_gridOriginOffset.x(), this->m_gridOriginOffset.y(), this->m_gridOriginOffset.z(), this->m_spatialVoxelScale, m_voxelGrid, m_numberVoxelsDepth, m_numberVoxelsHeight);
+	updateTSDFKernel<<<blocks, threadBlocks>>>(extrinsics, intrinsics, depthDataGPU, depthMapWidth, depthMapHeight, m_truncation, this->m_gridOriginOffset.x(), this->m_gridOriginOffset.y(), this->m_gridOriginOffset.z(), this->m_spatialVoxelScale, m_voxelGrid, m_numberVoxelsDepth, m_numberVoxelsHeight);
 	cudaGetLastError();
 	cudaDeviceSynchronize();
 }
 
-__host__ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsics, float truncation)
+__host__ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsics)
 {
 	RaycastImage result = RaycastImage(m_imageWidth, m_imageHeight);
 
@@ -157,9 +157,9 @@ __host__ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f 
 				// Set up next step
 				float stepSize = 0;
 				float currentTSDFValue = this->getVoxelData(gridCoordinates.x(), gridCoordinates.y(), gridCoordinates.z()).depthAverage;
-				if (currentTSDFValue >= truncation)
+				if (currentTSDFValue >= m_truncation)
 				{
-					stepSize = truncation;
+					stepSize = m_truncation;
 					rayPosition = rayPosition + stepSize * rayDirection;
 					distanceTravelled += stepSize;
 					// There can be no interface here as we are >= truncation away from a surface

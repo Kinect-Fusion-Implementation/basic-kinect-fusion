@@ -65,12 +65,13 @@ public:
     unsigned int m_imageHeight;
     unsigned int m_imageWidth;
     float m_spatialVoxelScale;
+    float m_truncation;
     Vector3f m_gridOriginOffset;
 
     /**
      * Allocates memory on the GPU for the voxel grid and I/O from raycasting
      */
-    VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, unsigned int imageHeight, unsigned int imageWidth, float scale);
+    VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, unsigned int imageHeight, unsigned int imageWidth, float scale, float truncation);
 
     ~VoxelGrid();
 
@@ -96,12 +97,12 @@ public:
     /**
      * Provides the point cloud that is the result of raycasting the voxel grid
      */
-    RaycastImage raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsics, float truncation);
+    RaycastImage raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsics);
     /**
      * Calls the corresponding kernel to update TSDF.
      * Updates TSDF Voxel grid using Volumetric Fusion algorithm
      */
-    void updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, float *depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight, float truncation);
+    void updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, float *depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight);
 };
 
 VoxelData &getVoxelData(VoxelData *voxelGrid, int w, unsigned int h, unsigned int d, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight);

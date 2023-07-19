@@ -147,7 +147,7 @@ int main()
 #if EVAL_MODE
         auto updateTSDFStart = std::chrono::high_resolution_clock::now();
 #endif
-        grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), truncation);
+        grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
 
 #if EVAL_MODE
         auto updateTSDFEnd = std::chrono::high_resolution_clock::now();
