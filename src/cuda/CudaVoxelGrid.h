@@ -96,7 +96,7 @@ public:
     /**
      * Provides the point cloud that is the result of raycasting the voxel grid
      */
-    RaycastImage raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsics);
+    RaycastImage raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsics, float truncation);
     /**
      * Calls the corresponding kernel to update TSDF.
      * Updates TSDF Voxel grid using Volumetric Fusion algorithm

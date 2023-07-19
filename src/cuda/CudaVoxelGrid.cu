@@ -109,7 +109,7 @@ __host__ void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, fl
 	cudaDeviceSynchronize();
 }
 
-__host__ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics)
+__host__ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsics, float truncation)
 {
 	RaycastImage result = RaycastImage(m_imageWidth, m_imageHeight);
 
@@ -157,9 +157,9 @@ __host__ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics)
 				// Set up next step
 				float stepSize = 0;
 				float currentTSDFValue = this->getVoxelData(gridCoordinates.x(), gridCoordinates.y(), gridCoordinates.z()).depthAverage;
-				if (currentTSDFValue >= m_truncation)
+				if (currentTSDFValue >= truncation)
 				{
-					stepSize = m_truncation;
+					stepSize = truncation;
 					rayPosition = rayPosition + stepSize * rayDirection;
 					distanceTravelled += stepSize;
 					// There can be no interface here as we are >= truncation away from a surface
