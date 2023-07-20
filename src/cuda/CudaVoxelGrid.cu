@@ -6,13 +6,10 @@ __host__ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidt
 {
 	std::cout << "Setting up grid" << std::endl;
 	unsigned long long numberVoxels = m_numberVoxelsWidth * m_numberVoxelsDepth * m_numberVoxelsHeight;
-	std::cout << "Voxel width, height, depth: " << numberVoxelsWidth << " " << numberVoxelsHeight << " " << numberVoxelsHeight << std::endl;
 	cudaMalloc(&m_voxelGrid, sizeof(VoxelData) * numberVoxels);
-	std::cout << "Allocating " << sizeof(VoxelData) * numberVoxels << "bytes." << std::endl;
 	
 	VoxelData *cleanGrid = new VoxelData[numberVoxels];
 	cudaMemcpy(m_voxelGrid, cleanGrid, sizeof(VoxelData) * numberVoxels, cudaMemcpyHostToDevice);
-	std::cout << "Setting up grid done" << std::endl;
 	delete[] cleanGrid;
 }
 
@@ -29,6 +26,13 @@ __host__ void VoxelGrid::sync()
 	cudaMemcpy(m_voxelGridCPU, m_voxelGrid, sizeof(VoxelData) * numberVoxels, cudaMemcpyDeviceToHost);
 }
 
+__host__ Vector3i VoxelGrid::getGridCoordinates(Vector3f worldCoordinates)
+{
+	Vector3f coordinates = worldCoordinates - m_gridOriginOffset;
+	coordinates = coordinates / m_spatialVoxelScale;
+	return Vector3i(int(coordinates.x()), int(coordinates.y()), int(coordinates.z()));
+}
+
 __global__ void updateTSDFKernel(Matrix4f extrinsics, Matrix3f intrinsics, float *depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight, float truncation, float offset_x, float offset_y, float offset_z, float spatialVoxelScale, VoxelData *tsdf, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight)
 {
 	unsigned w = blockIdx.x * blockDim.x + threadIdx.x;
@@ -36,7 +40,6 @@ __global__ void updateTSDFKernel(Matrix4f extrinsics, Matrix3f intrinsics, float
 	Matrix4f pose = extrinsics.inverse();
 	for (size_t d = 0; d < numberVoxelsDepth; d++)
 	{
-		// std::cout << "Processing voxel: (" << w << ", " << h << ", " << d << ") (width, height, depth)" << std::endl;
 		Vector3f worldCoordinatesOfGridCell = getWorldCoordinates(w, h, d, offset_x, offset_y, offset_z, spatialVoxelScale);
 
 		Vector3f cameraCoordinatesOfGridCell = extrinsics.block<3, 3>(0, 0) * worldCoordinatesOfGridCell;

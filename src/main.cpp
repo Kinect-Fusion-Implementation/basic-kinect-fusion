@@ -79,7 +79,9 @@ int icp_accuracy_test()
     float normal_diff_threshold = 0.3;
     std::vector<int> iterations_per_level = {10, 5, 4};
     ICPOptimizer optimizer(sensor, vertex_diff_threshold, normal_diff_threshold, iterations_per_level);
-    Matrix4f est = optimizer.optimize(pyramid2, pyramid1, prevFrameToGlobal);
+    /*
+    
+    Matrix4f est = optimizer.optimize(pyramid2, pyramid1.getPointClouds().at(0).getPoints().data(), pyramid1.getPointClouds().at(0).getNormals().data(), prevFrameToGlobal);
 
     std::cout << "Ground Truth: " << std::endl
               << gt << std::endl;
@@ -87,6 +89,7 @@ int icp_accuracy_test()
               << est << std::endl;
     std::cout << "Diff to ID Error: " << (gt * est).norm() / (gt.norm() * gt.norm()) << std::endl;
     std::cout << "Diff Error: " << (gt - est).norm() << std::endl;
+    */
     return 0;
 }
 
@@ -161,7 +164,8 @@ int main()
         const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
         auto raycastStart = std::chrono::high_resolution_clock::now();
 #endif
-        RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
+        /* We first have to adapt raycasting
+        // RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
 #if SAVE_IMAGE_MODE
         if(idx % 50 == 0 || idx > 70 && idx < 100) {
             ImageUtil::saveNormalMapToImage((float*) raycast.normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("RaycastedImage_") + std::to_string(idx), "");
@@ -174,6 +178,7 @@ int main()
         std::cout << "Computing raycasting took: " << std::chrono::duration_cast<std::chrono::milliseconds>(raycastStop - raycastStart).count() << " ms" << std::endl;
         std::cout << "Computing the frame took: " << std::chrono::duration_cast<std::chrono::milliseconds>(frameComputeEnd - frameComputeStart).count() << " ms" << std::endl;
 #endif
+        */
     }
 
     auto totalComputeStop = std::chrono::high_resolution_clock::now();
