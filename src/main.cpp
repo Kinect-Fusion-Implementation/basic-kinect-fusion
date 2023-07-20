@@ -112,7 +112,7 @@ int main()
     int roomWidthMeter = 6;
     int roomHeightMeter = 6;
     int roomDepthMeter = 6;
-    float voxelsPerMeter = 40;
+    float voxelsPerMeter = 100;
     float scale = 1 / voxelsPerMeter;
     int numberVoxelsWidth = roomWidthMeter * voxelsPerMeter;
     int numberVoxelsHeight = roomHeightMeter * voxelsPerMeter;

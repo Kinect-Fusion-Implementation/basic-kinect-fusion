@@ -99,7 +99,7 @@ __host__ void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, fl
 {
 	// Assume 240x240x240
 	dim3 threadBlocks(20, 20);
-	dim3 blocks(12, 12);
+	dim3 blocks(m_numberVoxelsWidth/20, m_numberVoxelsHeight/20);
 	float *depthDataGPU;
 	cudaMalloc(&depthDataGPU, sizeof(float) * depthMapWidth * depthMapHeight);
 	cudaMemcpy(depthDataGPU, depthMap, sizeof(float) * depthMapWidth * depthMapHeight, cudaMemcpyHostToDevice);
