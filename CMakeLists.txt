@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.18)
 
-set(CMAKE_CONFIGURATION_TYPES Debug Release CACHE TYPE INTERNAL FORCE)
+set(CMAKE_CONFIGURATION_TYPES Debug Release CACHE STRING INTERNAL FORCE)
 
 project(kinect_fusion LANGUAGES CXX CUDA)
 
@@ -9,6 +9,8 @@ set(LIBRARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../Libs CACHE PATH "Path to lib fold
 set(Eigen3_DIR ${LIBRARY_DIR}/Eigen/share/eigen3/cmake CACHE PATH "Path to installed Eigen")
 set(glog_DIR ${LIBRARY_DIR}/Glog/lib/cmake/glog CACHE PATH "Path to installed glog")
 set(Ceres_DIR ${LIBRARY_DIR}/Ceres/CMake CACHE PATH "Path to installed Ceres")
+set(LIBFREENECT_INCLUDE_DIR "/usr/local/include/libfreenect" CACHE PATH "Path to libfreenect include dir")
+set(LIBFREENECT_LIBRARY_DIR "/usr/local/lib" CACHE PATH "Path to libfreenect library dir")
 
 # Use pre-compiled libraries on Windows
 if(WIN32)
@@ -50,6 +52,8 @@ endif()
 #find_package(nanoflann REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(glog REQUIRED)
+find_package(OpenCV REQUIRED)
+find_library(libfreenect REQUIRED NAMES libfreenect.so PATHS ) # 
 get_target_property(GLOG_DLL_PATH_DEBUG glog::glog IMPORTED_LOCATION_DEBUG)
 get_target_property(GLOG_DLL_PATH_RELEASE glog::glog IMPORTED_LOCATION_RELEASE)
 
@@ -58,7 +62,7 @@ add_definitions("-D_DISABLE_EXTENDED_ALIGNED_STORAGE")
 set(SourceCode_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src CACHE PATH "Path to source code")
 set(CoreCode_DIR kinect_fusion CACHE PATH "Directory of the kinect fusion core code") 
 set(Configuration_DIR configuration CACHE PATH "Directory for configuration files") 
-set(Sensor_DIR sensor CACHE PATH "Directory for configuration files") 
+set(Sensor_DIR sensor CACHE PATH "Directory containing sensors")
 set(Visualization_DIR visualization CACHE PATH "Directory for configuration files")
 
 # RTX 3060 ti - GPU
@@ -71,6 +75,7 @@ set(HEADER_FILES
     ${SourceCode_DIR}/${CoreCode_DIR}/PointCloud.h 
     ${SourceCode_DIR}/${CoreCode_DIR}/ICPOptimizer.h 
     ${SourceCode_DIR}/${Sensor_DIR}/VirtualSensor.h
+    ${SourceCode_DIR}/${Sensor_DIR}/KinectSensor.h
     ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.h
     ${SourceCode_DIR}/${Visualization_DIR}/MarchingCubes.h
     ${SourceCode_DIR}/${Visualization_DIR}/PointCloudToMesh.h
@@ -82,12 +87,13 @@ set(SOURCE_FILES
     ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.cpp
     ${SourceCode_DIR}/${Configuration_DIR}/Configuration.cpp
     ${SourceCode_DIR}/${Visualization_DIR}/PointCloudToMesh.cpp
+    ${SourceCode_DIR}/${Sensor_DIR}/KinectSensor.cpp
 )
 
 link_directories(${FreeImage_LIBRARY_DIR})
 add_executable(kinect_fusion ${SourceCode_DIR}/main.cpp ${HEADER_FILES} ${SOURCE_FILES})
-target_link_libraries(kinect_fusion ceres freeimage Eigen3::Eigen Kinect_CUDA)
-target_include_directories(kinect_fusion PUBLIC ${EIGEN3_INCLUDE_DIR} ${FreeImage_INCLUDE_DIR} ${Flann_INCLUDE_DIR} ${SourceCode_DIR}/${CoreCode_DIR} ./src/cuda)
+target_link_libraries(kinect_fusion ceres freeimage Eigen3::Eigen ${OpenCV_LIBS} Kinect_CUDA ${LIBFREENECT_LIBRARY_DIR}/libfreenect.so)
+target_include_directories(kinect_fusion PUBLIC ${EIGEN3_INCLUDE_DIR} ${FreeImage_INCLUDE_DIR} ${Flann_INCLUDE_DIR} ${SourceCode_DIR}/${CoreCode_DIR} ${LIBFREENECT_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS}  ./src/cuda /usr/include/libusb-1.0)
 
 # On Windows copy dll to executable folder
 if(WIN32)

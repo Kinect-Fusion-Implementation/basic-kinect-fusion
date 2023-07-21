@@ -3,6 +3,7 @@
 #include <chrono>
 
 #include "./sensor/VirtualSensor.h"
+#include "./sensor/KinectSensor.h"
 #include "./kinect_fusion/Eigen.h"
 #include "./kinect_fusion/ICPOptimizer.h"
 #include "./kinect_fusion/PointCloud.h"
@@ -93,6 +94,11 @@ int icp_accuracy_test()
     return 0;
 }
 
+int main() {
+    KinectSensor sensor;
+}
+
+/*
 int main()
 {
     int result = 0;
@@ -164,7 +170,6 @@ int main()
         const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
         auto raycastStart = std::chrono::high_resolution_clock::now();
 #endif
-        /* We first have to adapt raycasting
         // RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
 #if SAVE_IMAGE_MODE
         if(idx % 50 == 0 || idx > 70 && idx < 100) {
@@ -178,7 +183,6 @@ int main()
         std::cout << "Computing raycasting took: " << std::chrono::duration_cast<std::chrono::milliseconds>(raycastStop - raycastStart).count() << " ms" << std::endl;
         std::cout << "Computing the frame took: " << std::chrono::duration_cast<std::chrono::milliseconds>(frameComputeEnd - frameComputeStart).count() << " ms" << std::endl;
 #endif
-        */
     }
 
     auto totalComputeStop = std::chrono::high_resolution_clock::now();
@@ -191,3 +195,4 @@ int main()
 #endif
     return result;
 }
+*/
