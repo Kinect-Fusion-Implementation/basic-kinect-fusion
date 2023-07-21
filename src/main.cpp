@@ -157,19 +157,18 @@ int main()
         std::cout << "Computing the TSDF update (volumetric fusion) took: " << std::chrono::duration_cast<std::chrono::milliseconds>(updateTSDFEnd - updateTSDFStart).count() << " ms" << std::endl;
         auto pyramidComputeStart = std::chrono::high_resolution_clock::now();
 #endif
-        PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
+        // PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
 #if EVAL_MODE
         auto pyramidComputeEnd = std::chrono::high_resolution_clock::now();
         std::cout << "Computing the pyramid took: " << std::chrono::duration_cast<std::chrono::milliseconds>(pyramidComputeEnd - pyramidComputeStart).count() << " ms" << std::endl;
-        const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
+        // const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
         auto raycastStart = std::chrono::high_resolution_clock::now();
 #endif
-        /* We first have to adapt raycasting
-        // RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
+        RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
 #if SAVE_IMAGE_MODE
         if(idx % 50 == 0 || idx > 70 && idx < 100) {
-            ImageUtil::saveNormalMapToImage((float*) raycast.normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("RaycastedImage_") + std::to_string(idx), "");
-            writeMesh(raycast.vertexMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), Configuration::getOutputDirectory() + "mesh_" + std::to_string(idx) + ".off");
+            ImageUtil::saveNormalMapToImage((float*) raycast.m_normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("RaycastedImage_") + std::to_string(idx), "");
+            writeMesh(raycast.m_vertexMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), Configuration::getOutputDirectory() + "mesh_" + std::to_string(idx) + ".off");
         }
 #endif
 #if EVAL_MODE
@@ -178,7 +177,6 @@ int main()
         std::cout << "Computing raycasting took: " << std::chrono::duration_cast<std::chrono::milliseconds>(raycastStop - raycastStart).count() << " ms" << std::endl;
         std::cout << "Computing the frame took: " << std::chrono::duration_cast<std::chrono::milliseconds>(frameComputeEnd - frameComputeStart).count() << " ms" << std::endl;
 #endif
-        */
     }
 
     auto totalComputeStop = std::chrono::high_resolution_clock::now();
