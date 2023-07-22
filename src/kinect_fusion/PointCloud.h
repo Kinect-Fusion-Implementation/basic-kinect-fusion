@@ -1,5 +1,6 @@
 #pragma once
 #include "Eigen.h"
+#include <iostream>
 
 class PointCloud
 {
@@ -72,7 +73,8 @@ public:
 				}
 
 				// TODO: Compute the normals using central differences.
-				normalsTmp[idx] = (pointsTmp[idx + width] - pointsTmp[idx - width]).cross(pointsTmp[idx + 1] - pointsTmp[idx - 1]);
+				normalsTmp[idx] = (pointsTmp[idx + 1] - pointsTmp[idx - 1]).cross(pointsTmp[idx + width] - pointsTmp[idx - width]);
+				// normalsTmp[idx] = (pointsTmp[idx + width] - pointsTmp[idx - width]).cross(pointsTmp[idx + 1] - pointsTmp[idx - 1]);
 				normalsTmp[idx].normalize();
 			}
 		}
