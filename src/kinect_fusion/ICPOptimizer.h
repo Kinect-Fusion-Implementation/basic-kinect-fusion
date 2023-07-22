@@ -199,7 +199,7 @@ private:
             if (prevMatchedVertex.allFinite() && prevMatchedVertex.allFinite()) {
                 if ((transformedCurrentVertex - prevMatchedVertex).norm() < m_vertex_diff_threshold){
                     Matrix3f rotation = (currentFrameToPrevFrameTransformation).block<3, 3>(0, 0);
-                    if (prevMatchedNormal.dot(rotation * currentNormal) < m_normal_diff_threshold) {
+                    if ((1 - prevMatchedNormal.dot(rotation * currentNormal)) < m_normal_diff_threshold) {
                         return std::make_tuple(prevMatchedVertex, prevMatchedNormal);
                     }
                 }

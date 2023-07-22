@@ -90,7 +90,8 @@ __global__ void updateTSDFKernel(Matrix4f extrinsics, Matrix3f intrinsics,
 
 		// There is an alternative formulation to this in the second paper...
 		// This will be >0 for points between camera and surface and < 0 for points behind the surface
-		float sdfEstimate = min(max(depth - distanceOfVoxelToCamera, -truncation), truncation);
+		float lambda = (intrinsics.inverse() * Vector3f(pixelCoordinates.x(), pixelCoordinates.y(), 1)).norm();
+		float sdfEstimate = min(max(depth * lambda - distanceOfVoxelToCamera, -truncation), truncation);
 
 		if (fabsf(sdfEstimate) < truncation)
 		{

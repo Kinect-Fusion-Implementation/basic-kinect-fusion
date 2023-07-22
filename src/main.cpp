@@ -125,6 +125,7 @@ int main()
 #if EVAL_MODE
     auto gridGenStart = std::chrono::high_resolution_clock::now();
 #endif
+    // x,y,z: widht, height, depth
     VoxelGrid grid(Vector3f(-2.0, -1.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
 #if EVAL_MODE
     auto gridGenEnd = std::chrono::high_resolution_clock::now();
@@ -150,6 +151,8 @@ int main()
 #if EVAL_MODE
         auto updateTSDFStart = std::chrono::high_resolution_clock::now();
 #endif
+        // Raycast
+        // ICP
         grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
 
 #if EVAL_MODE
