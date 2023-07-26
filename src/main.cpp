@@ -84,12 +84,15 @@ int main()
 #if EVAL_MODE
         auto pyramidComputeEnd = std::chrono::high_resolution_clock::now();
         std::cout << "Computing the pyramid took: " << std::chrono::duration_cast<std::chrono::milliseconds>(pyramidComputeEnd - pyramidComputeStart).count() << " ms" << std::endl;
+#endif
+#if SAVE_IMAGE_MODE
         for (size_t i = 0; i < pyramid.getPointClouds().size(); i++)
         {
             std::cout << "Generating mesh for level " << i << std::endl;
             writeMesh(pyramid.getPointClouds().at(i).getPointsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, Configuration::getOutputDirectory() + std::string("mesh_") + std::to_string(i) + ".off");
         }
-        return 0;
+#endif
+#if EVAL_MODE
         auto raycastStart = std::chrono::high_resolution_clock::now();
 #endif
         RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
