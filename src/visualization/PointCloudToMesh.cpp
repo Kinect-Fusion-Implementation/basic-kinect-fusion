@@ -15,7 +15,6 @@ bool writeMesh(Vector3f *vertices, unsigned int width, unsigned int height, cons
 {
 	float edgeThreshold = 0.015f;
 	unsigned int nVertices = width * height;
-
 	std::vector<int> triangles_to_lower_right;
 	std::vector<int> triangles_to_upper_left;
 
@@ -30,8 +29,6 @@ bool writeMesh(Vector3f *vertices, unsigned int width, unsigned int height, cons
 		{
 			if (valid(vertices[i]) && valid(vertices[i + 1]) && valid(vertices[i + width]))
 			{
-				if (i > 307095)
-				std::cout << "Is Valid" << "\n";
 				// check if distance is still within threshold
 				if (distance(vertices[i], vertices[i + 1]) < edgeThreshold &&
 					distance(vertices[i], vertices[i + width]) < edgeThreshold &&
@@ -65,7 +62,6 @@ bool writeMesh(Vector3f *vertices, unsigned int width, unsigned int height, cons
 	std::ofstream outFile(filename);
 	if (!outFile.is_open())
 		return false;
-
 	// write header
 	outFile << "COFF" << std::endl;
 
@@ -107,5 +103,6 @@ bool writeMesh(Vector3f *vertices, unsigned int width, unsigned int height, cons
 	}
 	// close file
 	outFile.close();
+
 	return true;
 }

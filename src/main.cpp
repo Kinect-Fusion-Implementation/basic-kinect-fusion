@@ -27,8 +27,8 @@ int main()
     std::cout << "Using sigmaS: " << sigmaS << std::endl;
     std::cout << "Using sigmaR: " << sigmaR << std::endl;
 
-    // Number of subsampling levels
-    const unsigned levels = 2;
+    // Number of subsampling levels -> Without the basic level, the pyramid will contain subLevels + 1 point clouds
+    const unsigned subLevels = 2;
     // Size of smoothing window
     const unsigned windowSize = 7;
     // Size of subsampling window
@@ -78,19 +78,24 @@ int main()
         grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
 
         // Just for testing
-        PointCloud pcloud(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 0);
-        writeMesh(pcloud.getPointsCPU(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), Configuration::getOutputDirectory() + "mesh_" + std::to_string(idx) + ".off");
-        return 0;
+        // pcloud(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 0);
+        //writeMesh(pcloud.getPointsCPU(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), Configuration::getOutputDirectory() + "mesh_" + std::to_string(idx) + ".off");
+        //return 0;
 #if EVAL_MODE
         auto updateTSDFEnd = std::chrono::high_resolution_clock::now();
         std::cout << "Computing the TSDF update (volumetric fusion) took: " << std::chrono::duration_cast<std::chrono::milliseconds>(updateTSDFEnd - updateTSDFStart).count() << " ms" << std::endl;
         auto pyramidComputeStart = std::chrono::high_resolution_clock::now();
 #endif
-        // PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), levels, windowSize, blockSize, sigmaR, sigmaS);
+        PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 0, windowSize, blockSize, sigmaR, sigmaS);
 #if EVAL_MODE
         auto pyramidComputeEnd = std::chrono::high_resolution_clock::now();
         std::cout << "Computing the pyramid took: " << std::chrono::duration_cast<std::chrono::milliseconds>(pyramidComputeEnd - pyramidComputeStart).count() << " ms" << std::endl;
-        // const std::vector<PointCloud> &cloud = pyramid.getPointClouds();
+        for (size_t i = 0; i < pyramid.getPointClouds().size(); i++)
+        {
+            std::cout << "Generating mesh for level " << i << std::endl;
+            writeMesh(pyramid.getPointClouds().at(i).getPointsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, Configuration::getOutputDirectory() + std::string("mesh_") + std::to_string(i));
+        }
+        return 0;
         auto raycastStart = std::chrono::high_resolution_clock::now();
 #endif
         RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
