@@ -12,6 +12,7 @@ private:
 	std::vector<PointCloud> pointClouds;
 	// Original depth map
 	float *rawDepthMap;
+	float *rawDepthMapGPU;
 	// Smoothed depth map stored in DEVICE memory, note that the ownership of this data is handed down to the depth map
 	float *m_smoothedDepthMap;
 	// Width of raw and smoothed depth map

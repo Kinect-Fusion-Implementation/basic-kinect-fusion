@@ -47,7 +47,7 @@ int main()
 #if EVAL_MODE
     auto gridGenStart = std::chrono::high_resolution_clock::now();
 #endif
-    // x,y,z: widht, height, depth
+    // x,y,z: width, height, depth
     VoxelGrid grid(Vector3f(-2.0, -1.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
 #if EVAL_MODE
     auto gridGenEnd = std::chrono::high_resolution_clock::now();
@@ -69,7 +69,6 @@ int main()
             trajectoryOffset = sensor.getTrajectory().inverse();
         }
         idx++;
-
 #if EVAL_MODE
         auto updateTSDFStart = std::chrono::high_resolution_clock::now();
 #endif
@@ -81,7 +80,7 @@ int main()
         std::cout << "Computing the TSDF update (volumetric fusion) took: " << std::chrono::duration_cast<std::chrono::milliseconds>(updateTSDFEnd - updateTSDFStart).count() << " ms" << std::endl;
         auto pyramidComputeStart = std::chrono::high_resolution_clock::now();
 #endif
-        PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 1, windowSize, blockSize, sigmaR, sigmaS);
+        PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 2, windowSize, blockSize, sigmaR, sigmaS);
 #if EVAL_MODE
         auto pyramidComputeEnd = std::chrono::high_resolution_clock::now();
         std::cout << "Computing the pyramid took: " << std::chrono::duration_cast<std::chrono::milliseconds>(pyramidComputeEnd - pyramidComputeStart).count() << " ms" << std::endl;

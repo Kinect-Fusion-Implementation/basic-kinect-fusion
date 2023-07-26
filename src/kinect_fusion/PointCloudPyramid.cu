@@ -22,14 +22,16 @@ PointCloudPyramid::PointCloudPyramid(float *depthMap, const Matrix3f &depthIntri
 
 	// Construct pyramid of pointClouds
 	// point cloud takes ownership of depth map after construction, no deletion required!
+
+	cudaDeviceSynchronize();
 	pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, m_width, m_height, 0);
-	
 	for (size_t i = 0; i < levels;)
 	{
 		// Compute subsampled depth map
 		currentDepthMap = subsampleDepthMap(currentDepthMap, m_width >> i, m_height >> i, sigmaR);
 		i++;
 
+		cudaDeviceSynchronize();
 		// Store subsampled depth map in pyramid -> pyramid handles deletion of depth map!
 		pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, m_width >> i, m_height >> i, i);
 	}
@@ -64,32 +66,14 @@ __global__ void computeSmoothedDepthMapKernel(float *rawDepthMap, float *smoothe
 
 	// Compute bilinear smoothing only on pixels in window of size m_windowSize
 	const int lowerLimitHeight = max(h - (windowSize / 2), 0);
-	const int upperLimitHeight = min(h + (windowSize / 2) + 1, height);
 	const int lowerLimitWidth = max(w - (windowSize / 2), 0);
-	const int upperLimitWidth = min(w + (windowSize / 2) + 1, width);
 	// Compute bilinear smoothing
-	/*
-	for (int y = lowerLimitHeight; y < upperLimitHeight; ++y)
-	{
-		for (int x = lowerLimitWidth; x < upperLimitWidth; ++x)
-		{
-			unsigned int idxWindow = y * width + x; // linearized index
-			if (rawDepthMap[idxWindow] == minf)
-			{
-				continue;
-			}
-			float summand = std::exp(-(std::pow((w - x), 2) + std::pow((h - y), 2)) * (1 / std::pow(sigmaS, 2))) * std::exp(-(std::pow(rawDepthMap[idx] - rawDepthMap[idxWindow], 2) * (1 / std::pow(sigmaR, 2))));
-			normalizer += summand;
-			sum += summand * rawDepthMap[idxWindow];
-		}
-	}
-	*/
 	for (int j = 0; j < windowSize * windowSize; j++)
 	{
 		int x = lowerLimitWidth + (j % windowSize);
 		int y = lowerLimitHeight + int(j / windowSize);
 		unsigned int idxWindow = x + width * y;
-		if (rawDepthMap[idxWindow] == minf)
+		if (x > width || y > height || rawDepthMap[idxWindow] == minf)
 		{
 			continue;
 		}
@@ -111,21 +95,19 @@ void PointCloudPyramid::computeSmoothedDepthMap(const float sigmaR, const float 
 {
 	dim3 threadBlocks(20, 20);
 	dim3 blocks(m_width / 20, m_height / 20);
-	float *m_rawDepthMapGPU;
 	unsigned int numberDepthValues = m_width * m_height;
 	cudaMalloc(&m_rawDepthMapGPU, numberDepthValues * sizeof(float));
 	cudaMalloc(&m_smoothedDepthMap, numberDepthValues * sizeof(float));
 	cudaMemcpy(m_rawDepthMapGPU, rawDepthMap, numberDepthValues * sizeof(float), cudaMemcpyHostToDevice);
 	computeSmoothedDepthMapKernel<<<blocks, threadBlocks>>>(m_rawDepthMapGPU, m_smoothedDepthMap, m_width, m_height, sigmaR, sigmaS, m_windowSize, MINF);
-	cudaDeviceSynchronize();
 }
 
 __global__ void subsampleDepthMapKernel(float *depthMap, float *subsampledDepthMap, const unsigned width, const unsigned height, const unsigned blockSize, const float sigmaR, const float minf)
 {
 	float threshold = 3 * sigmaR;
 	// Initially w,h are here values of the output width and height (half of the original)
-	unsigned w = blockIdx.x * blockDim.x + threadIdx.x;
-	unsigned h = blockIdx.y * blockDim.y + threadIdx.y;
+	unsigned int w = blockIdx.x * blockDim.x + threadIdx.x;
+	unsigned int h = blockIdx.y * blockDim.y + threadIdx.y;
 
 	if (w > (width / 2) || h > (height / 2))
 	{
@@ -143,30 +125,37 @@ __global__ void subsampleDepthMapKernel(float *depthMap, float *subsampledDepthM
 	const int upperLimitHeight = min(h + (blockSize / 2) + 1, int(height));
 	const int lowerLimitWidth = max(w - (blockSize / 2), 0);
 	const int upperLimitWidth = min(w + (blockSize / 2) + 1, int(width));
-	unsigned blockEntries = (upperLimitHeight - lowerLimitHeight) * (upperLimitWidth - lowerLimitWidth);
+	unsigned int entries = 0;
 
 	// Compute block average over the blockSize
-	for (int y = lowerLimitHeight; y < upperLimitHeight; ++y)
+	for (int j = 0; j < blockSize * blockSize; j++)
 	{
-		for (int x = lowerLimitWidth; x < upperLimitWidth; ++x)
+		int x = lowerLimitWidth + (j % blockSize);
+		int y = lowerLimitHeight + int(j / blockSize);
+		unsigned int blockIdx = x + width * y;
+		if (x >= width || y >= height || depthMap[blockIdx] == minf)
 		{
-			unsigned int blockIdx = y * width + x; // linearized index
-			if (depthMap[blockIdx] == minf)
-			{
-				blockEntries--;
-			}
-			// If the depth at idx is not defined, we don't care about the threshold.
-			else if (depthMap[idx] == minf || abs(depthMap[blockIdx] - depthMap[idx]) <= threshold)
-			{
-				sum += depthMap[blockIdx];
-			}
-			else
-			{
-				blockEntries--;
-			}
+			continue;
+		}
+		// If the depth at idx is not defined, we don't care about the threshold.
+		else if (depthMap[idx] == minf || abs(depthMap[blockIdx] - depthMap[idx]) <= threshold)
+		{
+			sum += depthMap[blockIdx];
+			entries++;
+		}
+		else
+		{
+			continue;
 		}
 	}
-	subsampledDepthMap[(h / 2) * (width / 2) + (w / 2)] = sum / blockEntries;
+	if (entries == 0)
+	{
+		subsampledDepthMap[(h / 2) * (width / 2) + (w / 2)] = minf;
+	}
+	else
+	{
+		subsampledDepthMap[(h / 2) * (width / 2) + (w / 2)] = sum / entries;
+	}
 }
 
 float *PointCloudPyramid::subsampleDepthMap(float *depthMap, const unsigned width, const unsigned height, const float sigmaR)
@@ -177,6 +166,5 @@ float *PointCloudPyramid::subsampleDepthMap(float *depthMap, const unsigned widt
 	cudaMalloc(&subsampledDepthMap, (width / 2) * (height / 2) * sizeof(float));
 
 	subsampleDepthMapKernel<<<blocks, threadBlocks>>>(depthMap, subsampledDepthMap, width, height, m_blockSize, sigmaR, MINF);
-	cudaDeviceSynchronize();
 	return subsampledDepthMap;
 }
