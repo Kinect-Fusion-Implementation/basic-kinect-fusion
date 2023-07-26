@@ -4,12 +4,10 @@
 
 #include "./sensor/VirtualSensor.h"
 #include "./kinect_fusion/Eigen.h"
-#include "./kinect_fusion/ICPOptimizer.h"
 #include "PointCloud.h"
 #include "PointCloudPyramid.h"
-#include "./kinect_fusion/ICPOptimizer.h"
 #include "./configuration/Configuration.h"
-#include "./kinect_fusion/ICPOptimizer.h"
+#include "ICPOptimizer.h"
 #include "CudaVoxelGrid.h"
 #include "../visualization/MarchingCubes.h"
 #include "./visualization/PointCloudToMesh.h"
@@ -17,7 +15,6 @@
 int main()
 {
     int result = 0;
-    // return icp_accuracy_test();
 
     VirtualSensor sensor;
     sensor.init(Configuration::getDataSetPath());
@@ -43,6 +40,7 @@ int main()
     int numberVoxelsWidth = roomWidthMeter * voxelsPerMeter;
     int numberVoxelsHeight = roomHeightMeter * voxelsPerMeter;
     int numberVoxelsDepth = roomDepthMeter * voxelsPerMeter;
+    ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), )
 
 #if EVAL_MODE
     auto gridGenStart = std::chrono::high_resolution_clock::now();
@@ -105,8 +103,14 @@ int main()
 #endif
 #if EVAL_MODE
         auto raycastStop = std::chrono::high_resolution_clock::now();
-        auto frameComputeEnd = std::chrono::high_resolution_clock::now();
         std::cout << "Computing raycasting took: " << std::chrono::duration_cast<std::chrono::milliseconds>(raycastStop - raycastStart).count() << " ms" << std::endl;
+        auto icpStart = std::chrono::high_resolution_clock::now();
+#endif
+
+#if EVAL_MODE
+        auto icpEnd = std::chrono::high_resolution_clock::now();
+        auto frameComputeEnd = std::chrono::high_resolution_clock::now();
+        std::cout << "Computing ICP took: " << std::chrono::duration_cast<std::chrono::milliseconds>(icpEnd - icpStart).count() << " ms" << std::endl;
         std::cout << "Computing the frame took: " << std::chrono::duration_cast<std::chrono::milliseconds>(frameComputeEnd - frameComputeStart).count() << " ms" << std::endl;
 #endif
     }

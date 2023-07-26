@@ -1,4 +1,5 @@
 #include "PointCloudPyramid.h"
+#include <assert.h>
 
 PointCloudPyramid::PointCloudPyramid(float *depthMap, const Matrix3f &depthIntrinsics, const Matrix4f &depthExtrinsics,
 									 const unsigned int width, const unsigned int height, const unsigned int levels,

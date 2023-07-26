@@ -1,6 +1,27 @@
 #include "CudaVoxelGrid.h"
 #include <stdio.h>
 
+__host__ RaycastImage::~RaycastImage()
+{
+	std::cout << "Destructing raycast image..." << std::endl;
+	if (m_vertexMap != nullptr)
+	{
+		delete[] m_vertexMap;
+	}
+	if (m_normalMap != nullptr)
+	{
+		delete[] m_normalMap;
+	}
+	if (m_vertexMapGPU != nullptr)
+	{
+		cudaFree(m_vertexMapGPU);
+	}
+	if (m_normalMapGPU != nullptr)
+	{
+		cudaFree(m_vertexMapGPU);
+	}
+}
+
 __host__ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth,
 							  unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight,
 							  unsigned int imageHeight, unsigned int imageWidth, float scale, float truncation) : m_gridOriginOffset(gridOrigin.x(), gridOrigin.y(), gridOrigin.z()),

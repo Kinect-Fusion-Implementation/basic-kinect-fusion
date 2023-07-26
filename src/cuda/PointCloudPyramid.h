@@ -1,9 +1,8 @@
 #pragma once
 #include "../kinect_fusion/Eigen.h"
-#include <cmath>
-
 #include "PointCloud.h"
-#include <assert.h>
+
+#include <cmath>
 
 class PointCloudPyramid
 {

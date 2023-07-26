@@ -31,26 +31,7 @@ struct RaycastImage
         }
     };
 
-    ~RaycastImage()
-    {
-        std::cout << "Destructing raycast image..." << std::endl;
-        if (m_vertexMap != nullptr)
-        {
-            delete[] m_vertexMap;
-        }
-        if (m_normalMap != nullptr)
-        {
-            delete[] m_normalMap;
-        }
-        if (m_vertexMapGPU != nullptr)
-        {
-            cudaFree(m_vertexMapGPU);
-        }
-        if (m_normalMapGPU != nullptr)
-        {
-            cudaFree(m_vertexMapGPU);
-        }
-    }
+    ~RaycastImage();
 };
 
 /**
