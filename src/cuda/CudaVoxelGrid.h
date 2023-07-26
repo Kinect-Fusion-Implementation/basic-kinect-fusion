@@ -1,5 +1,6 @@
 #pragma once
 #include "../kinect_fusion/Eigen.h"
+#include <iostream>
 
 struct VoxelData
 {
@@ -15,9 +16,11 @@ struct RaycastImage
 {
     Vector3f *m_vertexMap;
     Vector3f *m_normalMap;
+    Vector3f *m_vertexMapGPU;
+	Vector3f *m_normalMapGPU;
 
-    RaycastImage() : m_vertexMap(nullptr), m_normalMap(nullptr){};
-    RaycastImage(int width, int height)
+    RaycastImage() : m_vertexMap(nullptr), m_normalMap(nullptr), m_vertexMapGPU(nullptr), m_normalMapGPU(nullptr){};
+    RaycastImage(int width, int height): m_vertexMapGPU(nullptr), m_normalMapGPU(nullptr)
     {
         m_vertexMap = new Vector3f[width * height];
         m_normalMap = new Vector3f[width * height];
@@ -30,6 +33,7 @@ struct RaycastImage
 
     ~RaycastImage()
     {
+        std::cout << "Destructing raycast image..." << std::endl;
         if (m_vertexMap != nullptr)
         {
             delete[] m_vertexMap;
@@ -37,6 +41,14 @@ struct RaycastImage
         if (m_normalMap != nullptr)
         {
             delete[] m_normalMap;
+        }
+        if (m_vertexMapGPU != nullptr)
+        {
+            cudaFree(m_vertexMapGPU);
+        }
+        if (m_normalMapGPU != nullptr)
+        {
+            cudaFree(m_vertexMapGPU);
         }
     }
 };
@@ -55,8 +67,6 @@ private:
     // In our case this is stored in the CUDA GPU Memory
     VoxelData *m_voxelGrid;
     VoxelData *m_voxelGridCPU;
-	Vector3f *m_vertexMapGPU;
-	Vector3f *m_normalMapGPU;
 
     // Grid is orientied along the world frame axes, but we want to define the area it covers freely by shifting its (0,0) location relative to the world frame
 

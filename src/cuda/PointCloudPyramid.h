@@ -1,5 +1,5 @@
 #pragma once
-#include "Eigen.h"
+#include "../kinect_fusion/Eigen.h"
 #include <cmath>
 
 #include "PointCloud.h"

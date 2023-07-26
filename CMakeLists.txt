@@ -69,8 +69,6 @@ add_subdirectory(./src/cuda)
 
 set(HEADER_FILES 
     ${SourceCode_DIR}/${CoreCode_DIR}/Eigen.h 
-    ${SourceCode_DIR}/${CoreCode_DIR}/PointCloud.h 
-    ${SourceCode_DIR}/${CoreCode_DIR}/ICPOptimizer.h 
     ${SourceCode_DIR}/${Sensor_DIR}/VirtualSensor.h
     ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.h
     ${SourceCode_DIR}/${Visualization_DIR}/MarchingCubes.h
@@ -83,8 +81,6 @@ set(SOURCE_FILES
     ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.cpp
     ${SourceCode_DIR}/${Configuration_DIR}/Configuration.cpp
     ${SourceCode_DIR}/${Visualization_DIR}/PointCloudToMesh.cpp
-    ${SourceCode_DIR}/${CoreCode_DIR}/PointCloudPyramid.cu 
-    ${SourceCode_DIR}/${CoreCode_DIR}/PointCloud.cu 
 )
 
 link_directories(${FreeImage_LIBRARY_DIR})

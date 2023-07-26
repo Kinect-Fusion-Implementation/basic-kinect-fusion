@@ -1,6 +1,5 @@
 #include "CudaVoxelGrid.h"
 #include <stdio.h>
-#include <iostream>
 
 __host__ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth,
 							  unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight,
@@ -12,8 +11,6 @@ __host__ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidt
 	std::cout << "Setting up grid" << std::endl;
 	unsigned long long numberVoxels = m_numberVoxelsWidth * m_numberVoxelsDepth * m_numberVoxelsHeight;
 	cudaMalloc(&m_voxelGrid, sizeof(VoxelData) * numberVoxels);
-	cudaMalloc(&m_vertexMapGPU, m_memorySize);
-	cudaMalloc(&m_normalMapGPU, m_memorySize);
 
 	VoxelData *cleanGrid = new VoxelData[numberVoxels];
 	cudaMemcpy(m_voxelGrid, cleanGrid, sizeof(VoxelData) * numberVoxels, cudaMemcpyHostToDevice);
@@ -31,14 +28,6 @@ __host__ VoxelGrid::~VoxelGrid()
 	if (m_voxelGrid != nullptr)
 	{
 		cudaFree(m_voxelGrid);
-	}
-	if (m_vertexMapGPU != nullptr)
-	{
-		cudaFree(m_vertexMapGPU);
-	}
-	if (m_normalMapGPU != nullptr)
-	{
-		cudaFree(m_normalMapGPU);
 	}
 	std::cout << "VoxelGrid destructed" << std::endl;
 }
@@ -219,16 +208,19 @@ __host__ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f 
 	dim3 threadBlocks(20, 20);
 	dim3 blocks(m_imageWidth / 20, m_imageHeight / 20);
 	RaycastImage image(m_imageWidth, m_imageHeight);
+	// Allocate memory and pass ownership to RaycastImage (RAII)
+	cudaMalloc(&image.m_vertexMapGPU, m_memorySize);
+	cudaMalloc(&image.m_normalMapGPU, m_memorySize);
 	// Clean GPU memory:
-	cudaMemcpy(m_vertexMapGPU, image.m_vertexMap, m_memorySize, cudaMemcpyHostToDevice);
-	cudaMemcpy(m_normalMapGPU, image.m_normalMap, m_memorySize, cudaMemcpyHostToDevice);
+	cudaMemcpy(image.m_vertexMapGPU, image.m_vertexMap, m_memorySize, cudaMemcpyHostToDevice);
+	cudaMemcpy(image.m_normalMapGPU, image.m_normalMap, m_memorySize, cudaMemcpyHostToDevice);
 	raycastVoxelGridKernel<<<blocks, threadBlocks>>>(extrinsics.inverse(), extrinsics, intrinsics,
-													 m_vertexMapGPU, m_normalMapGPU, m_gridOriginOffset,
+													 image.m_vertexMapGPU, image.m_normalMapGPU, m_gridOriginOffset,
 													 m_spatialVoxelScale, m_voxelGrid,
 													 m_numberVoxelsDepth, m_numberVoxelsWidth, m_numberVoxelsHeight,
 													 m_imageWidth, m_truncation, MINF);
-	cudaMemcpy(image.m_vertexMap, m_vertexMapGPU, m_memorySize, cudaMemcpyDeviceToHost);
-	cudaMemcpy(image.m_normalMap, m_normalMapGPU, m_memorySize, cudaMemcpyDeviceToHost);
+	cudaMemcpy(image.m_vertexMap, image.m_vertexMapGPU, m_memorySize, cudaMemcpyDeviceToHost);
+	cudaMemcpy(image.m_normalMap, image.m_normalMapGPU, m_memorySize, cudaMemcpyDeviceToHost);
 	return image;
 }
 
