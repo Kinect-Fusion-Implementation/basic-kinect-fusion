@@ -56,57 +56,29 @@ public:
 		assert(m_windowSize % 2 == 1);
 		assert(m_blockSize % 2 == 1);
 
-// Compute smoothed depth map
-#if EVAL_MODE
-		auto smoothDepthMapStart = std::chrono::high_resolution_clock::now();
-#endif
-		computeSmoothedDepthMap(sigmaR, sigmaS);
-#if EVAL_MODE
-		auto smoothDepthMapEnd = std::chrono::high_resolution_clock::now();
-		std::cout << "Computing the smoothed depth map took: " << std::chrono::duration_cast<std::chrono::milliseconds>(smoothDepthMapEnd - smoothDepthMapStart).count() << " ms" << std::endl;
-#endif
-#if SAVE_IMAGE_MODE 
-		ImageUtil::saveDepthMapToImage(m_smoothedDepthMap, m_width, m_height, "SmoothedDepthMap", "Saving smoothed depth map...");
-#endif
+	// Compute smoothed depth map
+
 		// Setup of pyramid
 		float *currentDepthMap = m_smoothedDepthMap;
 		pointClouds.reserve(levels + 1);
 
-// Construct pyramid of pointClouds
-#if EVAL_MODE
-		auto computeInitialPointCloudStart = std::chrono::high_resolution_clock::now();
-#endif
-		pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, m_width, m_height, 0);
-#if EVAL_MODE
-		auto computeInitialPointCloudEnd = std::chrono::high_resolution_clock::now();
-		std::cout << "Computing the point cloud of the original scale took: " << std::chrono::duration_cast<std::chrono::milliseconds>(computeInitialPointCloudEnd - computeInitialPointCloudStart).count() << " ms" << std::endl;
+	// Construct pyramid of pointClouds
 
-#endif
+		pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, m_width, m_height, 0);
+
 		for (size_t i = 0; i < levels;)
 		{
-#if EVAL_MODE
-			auto subsampleStart = std::chrono::high_resolution_clock::now();
-#endif
+
 			// Compute subsampled depth map
 			currentDepthMap = subsampleDepthMap(currentDepthMap, m_width >> i, m_height >> i, sigmaR);
-#if EVAL_MODE
-			auto subsampleEnd = std::chrono::high_resolution_clock::now();
-			std::cout << "Computing subsampled depth map took: " << std::chrono::duration_cast<std::chrono::milliseconds>(subsampleEnd - subsampleStart).count() << " ms" << std::endl;
-#endif
+
 			i++;
 			// Print subsampled depth map to file
-#if SAVE_IMAGE_MODE 
-			ImageUtil::saveDepthMapToImage(currentDepthMap, m_width >> i, m_height >> i, std::string("SubsampledDepthMap_") + std::to_string(i), "Saving subsampled depthmap...");
-#endif
+
 			// Store subsampled depth map in pyramid
-#if EVAL_MODE
-			auto constructPointCloudStart = std::chrono::high_resolution_clock::now();
-#endif
+
 			pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, m_width >> i, m_height >> i, i);
-#if EVAL_MODE
-			auto constructPointCloudEnd = std::chrono::high_resolution_clock::now();
-			std::cout << "Computing the point cloud of level " << i << " took: " << std::chrono::duration_cast<std::chrono::milliseconds>(constructPointCloudEnd - constructPointCloudStart).count() << " ms" << std::endl;
-#endif
+
 		}
 	}
 
