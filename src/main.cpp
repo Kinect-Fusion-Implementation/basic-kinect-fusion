@@ -40,7 +40,11 @@ int main()
     int numberVoxelsWidth = roomWidthMeter * voxelsPerMeter;
     int numberVoxelsHeight = roomHeightMeter * voxelsPerMeter;
     int numberVoxelsDepth = roomDepthMeter * voxelsPerMeter;
-    ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), )
+    float vertex_diff_threshold = 0.3;
+    float normal_diff_threshold = 0.3;
+    std::vector<int> iterations_per_level = {10, 5, 4};
+    ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertex_diff_threshold, normal_diff_threshold, iterations_per_level);
+    Matrix4f prevFrameToGlobal = Matrix4f::Identity();
 
 #if EVAL_MODE
     auto gridGenStart = std::chrono::high_resolution_clock::now();
@@ -106,7 +110,7 @@ int main()
         std::cout << "Computing raycasting took: " << std::chrono::duration_cast<std::chrono::milliseconds>(raycastStop - raycastStart).count() << " ms" << std::endl;
         auto icpStart = std::chrono::high_resolution_clock::now();
 #endif
-
+        prevFrameToGlobal = optimizer.optimize(pyramid, raycast.m_vertexMapGPU, raycast.m_normalMapGPU, prevFrameToGlobal);
 #if EVAL_MODE
         auto icpEnd = std::chrono::high_resolution_clock::now();
         auto frameComputeEnd = std::chrono::high_resolution_clock::now();
