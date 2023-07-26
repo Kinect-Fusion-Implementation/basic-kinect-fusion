@@ -80,20 +80,17 @@ __host__ PointCloud::PointCloud(float *depthMap, const Matrix3f &depthIntrinsics
 	dim3 blocks(width / 20, height / 20);
 	size_t m_memorySize = sizeof(Vector3f) * width * height;
 	m_depthMap = depthMap;
-	
-	//float *depth;
-	//cudaMalloc(&depth, width * height * sizeof(float));
-	//cudaMemcpy(depth, depthMap, width * height * sizeof(float), cudaMemcpyHostToDevice);
-	//m_depthMap = depth;
 
 	cudaMalloc(&m_points, m_memorySize);
 	cudaMalloc(&m_normals, m_memorySize);
 
 	computeVerticesKernel<<<blocks, threadBlocks>>>(m_depthMap, m_points, depthIntrinsics, depthExtrinsics, width, height, level, MINF);
+	computeNormalsKernel<<<blocks, threadBlocks>>>(m_depthMap, m_points, m_normals, width, height, MINF);
 
 	// Set flag that the device memory still has to be copied
 	m_pointsOnCPU = false;
 	m_normalsOnCPU = false;
+	cudaDeviceSynchronize();
 }
 
 __host__ PointCloud::~PointCloud()
@@ -101,13 +98,14 @@ __host__ PointCloud::~PointCloud()
 	cudaFree(m_points);
 	cudaFree(m_normals);
 	cudaFree(m_depthMap);
+	if(m_pointsOnCPU)
 	free(m_points_cpu);
+	if(m_normalsOnCPU)
 	free(m_normals_cpu);
 }
 
 __host__ Vector3f *PointCloud::getPointsCPU()
 {
-	std::cout << "Copy pointcloud to cpu." << std::endl;
 	if (!m_pointsOnCPU)
 	{
 		// Allocate memory for copy

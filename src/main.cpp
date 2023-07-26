@@ -76,24 +76,19 @@ int main()
         // Raycast
         // ICP
         grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
-
-        // Just for testing
-        // pcloud(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 0);
-        //writeMesh(pcloud.getPointsCPU(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), Configuration::getOutputDirectory() + "mesh_" + std::to_string(idx) + ".off");
-        //return 0;
 #if EVAL_MODE
         auto updateTSDFEnd = std::chrono::high_resolution_clock::now();
         std::cout << "Computing the TSDF update (volumetric fusion) took: " << std::chrono::duration_cast<std::chrono::milliseconds>(updateTSDFEnd - updateTSDFStart).count() << " ms" << std::endl;
         auto pyramidComputeStart = std::chrono::high_resolution_clock::now();
 #endif
-        PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 0, windowSize, blockSize, sigmaR, sigmaS);
+        PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getTrajectory() * trajectoryOffset, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 1, windowSize, blockSize, sigmaR, sigmaS);
 #if EVAL_MODE
         auto pyramidComputeEnd = std::chrono::high_resolution_clock::now();
         std::cout << "Computing the pyramid took: " << std::chrono::duration_cast<std::chrono::milliseconds>(pyramidComputeEnd - pyramidComputeStart).count() << " ms" << std::endl;
         for (size_t i = 0; i < pyramid.getPointClouds().size(); i++)
         {
             std::cout << "Generating mesh for level " << i << std::endl;
-            writeMesh(pyramid.getPointClouds().at(i).getPointsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, Configuration::getOutputDirectory() + std::string("mesh_") + std::to_string(i));
+            writeMesh(pyramid.getPointClouds().at(i).getPointsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, Configuration::getOutputDirectory() + std::string("mesh_") + std::to_string(i) + ".off");
         }
         return 0;
         auto raycastStart = std::chrono::high_resolution_clock::now();

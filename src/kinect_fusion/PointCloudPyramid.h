@@ -1,6 +1,5 @@
 #pragma once
 #include "Eigen.h"
-#include <algorithm>
 #include <cmath>
 
 #include "PointCloud.h"
@@ -23,6 +22,7 @@ private:
 	int m_windowSize;
 	// Sidelength of square considered for subsampling
 	int m_blockSize;
+	float *m_rawDepthMapGPU;
 
 private:
 	PointCloudPyramid() = delete;
@@ -45,6 +45,8 @@ public:
 	PointCloudPyramid(float *depthMap, const Matrix3f &depthIntrinsics, const Matrix4f &depthExtrinsics,
 					  const unsigned int width, const unsigned int height, const unsigned int levels,
 					  const unsigned int windowSize, const unsigned int blockSize, const float sigmaR, const float sigmaS);
+
+	~PointCloudPyramid();
 
 	std::vector<PointCloud> &getPointClouds()
 	{
