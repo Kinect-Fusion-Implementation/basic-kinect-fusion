@@ -52,6 +52,7 @@ public:
             std::cout << "Level: " << i << std::endl;
             for (unsigned int k = 0; k < m_iterations_per_level[i]; k++) {
                 // CUDA:
+                // TODO: Should this be always pointcloud 0 or point cloud k?
                 std::vector<std::tuple<Vector3f, Vector3f, Vector3f, Vector3f>> correspondances = findCorrespondances(sourcePointClouds[0], vertexMap, normalMap, currentToPreviousFrame, prevFrameToGlobal);
                 // TODO: Check if enough correspondances were found
                 std::cout << "Level: " << i << " Iteration: " << k << std::endl;
@@ -162,10 +163,11 @@ private:
      *          returns a list of 
      * 
     */
-    std::vector<std::tuple<Vector3f, Vector3f, Vector3f, Vector3f>> findCorrespondances(const PointCloud& currentPointCloud, Vector3f *vertexMap, Vector3f *normalMap, const Matrix4f& currentFrameToPrevFrameTransformation, const Matrix4f& prevFrameToGlobalTransform) {
+    std::vector<std::tuple<Vector3f, Vector3f, Vector3f, Vector3f>> findCorrespondances(PointCloud& currentPointCloud, Vector3f *vertexMap, Vector3f *normalMap, const Matrix4f& currentFrameToPrevFrameTransformation, const Matrix4f& prevFrameToGlobalTransform) {
         std::vector<std::tuple<Vector3f, Vector3f, Vector3f, Vector3f>> correspondences;
         // --------- CUDAAAAAAAAAAA -----------
-        for (unsigned int i = 0; i < currentPointCloud.getPoints().size(); i++) {
+        unsigned int numberPoints = m_width * m_height;
+        for (unsigned int i = 0; i < numberPoints; i++) {
             Vector3f currentVertex = currentPointCloud.getPoints()[i];
             Vector3f currentNormal = currentPointCloud.getNormals()[i];
             if (currentVertex.allFinite() && currentNormal.allFinite()) {
