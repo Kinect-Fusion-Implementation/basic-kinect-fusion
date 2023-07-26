@@ -83,6 +83,7 @@ set(SOURCE_FILES
     ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.cpp
     ${SourceCode_DIR}/${Configuration_DIR}/Configuration.cpp
     ${SourceCode_DIR}/${Visualization_DIR}/PointCloudToMesh.cpp
+    ${SourceCode_DIR}/${CoreCode_DIR}/PointCloudPyramid.cu 
     ${SourceCode_DIR}/${CoreCode_DIR}/PointCloud.cu 
 )
 
