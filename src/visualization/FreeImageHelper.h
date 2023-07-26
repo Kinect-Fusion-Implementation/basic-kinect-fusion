@@ -83,5 +83,5 @@ namespace ImageUtil {
 }
 
 namespace DebugUtil {
-	void printFloatArray(float *map, int width, int height, std::string name);
+	void printNormals(float *map, int width, int height, std::string name);
 	}

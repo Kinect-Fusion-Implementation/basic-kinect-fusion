@@ -89,8 +89,9 @@ __global__ void updateTSDFKernel(Matrix4f extrinsics, Matrix3f intrinsics,
 		}
 
 		// There is an alternative formulation to this in the second paper...
-		// This will be >0 for points between camera and surface and < 0 for points behind the surface
-		float sdfEstimate = min(max(depth - distanceOfVoxelToCamera, -truncation), truncation);
+		// This will be > 0 for points between camera and surface and < 0 for points behind the surface
+		float lambda = (intrinsics.inverse() * Vector3f(pixelCoordinates.x(), pixelCoordinates.y(), 1)).norm();
+		float sdfEstimate = min(max(depth - distanceOfVoxelToCamera / lambda, -truncation), truncation);
 
 		if (fabsf(sdfEstimate) < truncation)
 		{
@@ -193,15 +194,15 @@ __global__ void raycastVoxelGridKernel(Matrix4f poseMatrix, Matrix4f extrinsics,
 				float depthValue = getVoxelData(tsdf, newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage;
 				// On average the distance between measurements is the distance of voxel centers -> the voxel scale
 				// Here we could definitely improve on accuracy
-				if (newGridCoordinates.x() + 1 >= numberVoxelsWidth || newGridCoordinates.y() + 1 >= numberVoxelsHeight || newGridCoordinates.z() + 1 >= numberVoxelsDepth)
+				if (newGridCoordinates.x() - 1 < 0 || newGridCoordinates.y() - 1 < 0 || newGridCoordinates.z() - 1 < 0)
 				{
 					break;
 				}
 				float deltaH = spatialVoxelScale;
 				vertexMap[w + h * imageWidth] = newRayPosition;
-				float deltaX = (getVoxelData(tsdf, newGridCoordinates.x() + 1, newGridCoordinates.y(), newGridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage - depthValue);
-				float deltaY = (getVoxelData(tsdf, newGridCoordinates.x(), newGridCoordinates.y() + 1, newGridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage - depthValue);
-				float deltaZ = (getVoxelData(tsdf, newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z() + 1, numberVoxelsDepth, numberVoxelsHeight).depthAverage - depthValue);
+				float deltaX = (getVoxelData(tsdf, newGridCoordinates.x() - 1, newGridCoordinates.y(), newGridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage - depthValue);
+				float deltaY = (getVoxelData(tsdf, newGridCoordinates.x(), newGridCoordinates.y() - 1, newGridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage - depthValue);
+				float deltaZ = (getVoxelData(tsdf, newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z() - 1, numberVoxelsDepth, numberVoxelsHeight).depthAverage - depthValue);
 				normalMap[w + h * imageWidth] = extrinsics.block<3, 3>(0, 0) * Vector3f(deltaX / deltaH, deltaY / deltaH, deltaZ / deltaH);
 
 				// For now we just normalize these...

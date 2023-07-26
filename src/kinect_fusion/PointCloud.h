@@ -1,5 +1,6 @@
 #pragma once
 #include "Eigen.h"
+#include <iostream>
 
 class PointCloud
 {
