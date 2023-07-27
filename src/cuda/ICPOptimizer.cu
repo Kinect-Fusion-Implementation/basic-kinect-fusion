@@ -65,14 +65,13 @@ __device__ bool isFinite(Vector3f vector)
 
 /**
  * Computes the correspondences for the currentFrame vertices
- * width and height have to be matched to the pyramid level that should be computed!
- * At level 0, this would be the original image dimensions.
+ * width and height have to be matched the original image size, as we project into the original image
  */
 __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVertices, Vector3f *currentFrameNormals, Vector3f *raycastVertexMap, Vector3f *raycastNormalMap,
                                                       Vector3f *matchedVertexMap, Vector3f *matchedNormalMap,
                                                       Matrix3f intrinsics, const Matrix4f currentFrameToPrevFrameTransformation, const Matrix4f prevFrameToGlobalTransform,
                                                       unsigned int width, unsigned int height, float vertex_diff_threshold, float normal_diff_threshold, float minf,
-                                                      Eigen::Matrix<float, 6, 6> *matrices, Eigen::Matrix<float, 6, 1> *vectors, float pointToPointWeight)
+                                                      Eigen::Matrix<float, 6, 6> *matrices, Eigen::Matrix<float, 6, 1> *vectors, float pointToPointWeight, unsigned int level)
 {
     unsigned idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx > width * height)
@@ -137,6 +136,10 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPoint
     unsigned int numberPoints = (m_width >> level) * (m_height >> level);
     dim3 threadBlocks(20);
     dim3 blocks(numberPoints / 20);
+    if (level == 2)
+    {
+        std::cout << "Number points: " << numberPoints << std::endl;
+    }
     Vector3f *currentFrameVertices = currentPointCloud.getPoints();
     Vector3f *currentFrameNormals = currentPointCloud.getNormals();
     Vector3f *matchedVertexMap;
@@ -150,8 +153,8 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPoint
     computeCorrespondencesAndSystemKernel<<<blocks, threadBlocks>>>(currentFrameVertices, currentFrameNormals, raycastVertexMap, raycastNormalMap,
                                                                     matchedVertexMap, matchedNormalMap,
                                                                     m_intrinsics, currentFrameToPrevFrameTransformation, prevFrameToGlobalTransform,
-                                                                    m_width >> level, m_height >> level, m_vertex_diff_threshold, m_normal_diff_threshold, MINF,
-                                                                    matrices, vectors, m_pointToPointWeight);
+                                                                    m_width, m_height, m_vertex_diff_threshold, m_normal_diff_threshold, MINF,
+                                                                    matrices, vectors, m_pointToPointWeight, level);
     Eigen::Matrix<float, 6, 6> *matricesCPU = new Eigen::Matrix<float, 6, 6>[numberPoints];
     Eigen::Matrix<float, 6, 1> *vectorsCPU = new Eigen::Matrix<float, 6, 1>[numberPoints];
     Vector3f *matchedVertexMapCPU = new Vector3f[numberPoints];
@@ -160,6 +163,7 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPoint
     cudaMemcpy(matchedVertexMapCPU, matchedVertexMap, numberPoints * sizeof(Vector3f), cudaMemcpyDeviceToHost);
     Eigen::Matrix<float, 6, 6> designMatrix = Eigen::Matrix<float, 6, 6>::Zero();
     Eigen::Matrix<float, 6, 1> designVector = Eigen::Matrix<float, 6, 1>::Zero();
+    size_t matches = 0;
     for (size_t i = 0; i < numberPoints; i++)
     {
         // If we got a match, the matched vertex is not a minf vector, and then the corresponding matrix and vector are valid
@@ -167,7 +171,12 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPoint
         {
             designMatrix += matricesCPU[i];
             designVector += vectorsCPU[i];
+            matches++;
         }
+    }
+    if (level == 2)
+    {
+        std::cout << "Number matches: " << matches << std::endl;
     }
     /*
     printf("design matrix:\n"
@@ -217,8 +226,7 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPoint
            output(3, 0), output(3, 1), output(3, 2), output(3, 3));
     printf("determinant:\n"
            "%f\n",
-           output.determinant()
-    );
+           output.determinant());
     return output;
 }
 
