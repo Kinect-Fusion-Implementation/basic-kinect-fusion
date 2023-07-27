@@ -34,6 +34,48 @@ __global__ void computeVerticesKernel(float *depthMap, Vector3f *vertexMap, cons
 	{
 		// Back-projection to camera space.
 		vertexMap[idx] = rotationInv * Vector3f((w - cX) / fovX * depth, (h - cY) / fovY * depth, depth) + translationInv;
+		/*
+		if (w == 353 && h == 206)
+		{
+			printf("Vertex:\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   vertexMap[idx].x(), vertexMap[idx].y(), vertexMap[idx].z());
+		}
+		if (w == 352 && h == 206)
+		{
+			printf("Left Vertex:\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   vertexMap[idx].x(), vertexMap[idx].y(), vertexMap[idx].z());
+		}
+		if (w == 354 && h == 206)
+		{
+			printf("Right Vertex:\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   vertexMap[idx].x(), vertexMap[idx].y(), vertexMap[idx].z());
+		}
+		if (w == 353 && h == 205)
+		{
+			printf("Upper Vertex:\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   vertexMap[idx].x(), vertexMap[idx].y(), vertexMap[idx].z());
+		}
+		if (w == 353 && h == 207)
+		{
+			printf("Lower Vertex:\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   vertexMap[idx].x(), vertexMap[idx].y(), vertexMap[idx].z());
+		}
+		*/
 	}
 }
 
@@ -67,8 +109,62 @@ __global__ void computeNormalsKernel(float *depthMap, Vector3f *vertexMap, Vecto
 	}
 	else
 	{
-		// TODO: Compute the normals using central differences.
-		normalMap[idx] = (vertexMap[idx + width] - vertexMap[idx - width]).cross(vertexMap[idx + 1] - vertexMap[idx - 1]);
+		// Compute the normals that point into the surface
+		/*If we use the cross product left-right x lower pixel * upper pixel, the normal vector will point into the plane
+		  To see this we can look into the fact that the camera is a RHS and if we use the RH rule we can see this clearly.
+		  For proof: Look into the outcommented outputs (points to a pixel on the monitor in the first frame)
+		if (w == 353 && h == 207)
+		{
+			printf("------------------------- In Normal computation ----------------------------------\n");
+			printf("Vertex:\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   vertexMap[idx].x(), vertexMap[idx].y(), vertexMap[idx].z());
+			printf("Left Vertex:\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   vertexMap[idx - 1].x(), vertexMap[idx - 1].y(), vertexMap[idx - 1].z());
+			printf("Right Vertex:\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   vertexMap[idx + 1].x(), vertexMap[idx + 1].y(), vertexMap[idx + 1].z());
+			printf("Lower Vertex (larger y):\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   vertexMap[idx + width].x(), vertexMap[idx + width].y(), vertexMap[idx + width].z());
+			printf("Higher Vertex (lower y):\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   vertexMap[idx - width].x(), vertexMap[idx - width].y(), vertexMap[idx - width].z());
+
+			printf("diff left-right ():\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   (vertexMap[idx + 1]-vertexMap[idx - 1]).x(), (vertexMap[idx + 1]-vertexMap[idx - 1]).y(), (vertexMap[idx + 1]-vertexMap[idx - 1]).z());
+			printf("diff up-down (in image):\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   (vertexMap[idx + width]-vertexMap[idx - width]).x(), (vertexMap[idx + width]-vertexMap[idx - width]).y(), (vertexMap[idx + width]-vertexMap[idx - width]).z());
+			
+			printf("Cross vector:\n"
+				   "%f\n"
+				   "%f\n"
+				   "%f\n",
+				   ((vertexMap[idx + 1] - vertexMap[idx - 1]).cross(vertexMap[idx + width] - vertexMap[idx - width])).x(), 
+				   ((vertexMap[idx + 1] - vertexMap[idx - 1]).cross(vertexMap[idx + width] - vertexMap[idx - width])).y(), 
+				   ((vertexMap[idx + 1] - vertexMap[idx - 1]).cross(vertexMap[idx + width] - vertexMap[idx - width])).z());
+		}
+		*/
+
+		normalMap[idx] = (vertexMap[idx + 1] - vertexMap[idx - 1]).cross(vertexMap[idx + width] - vertexMap[idx - width]);
+		// normalMap[idx] = (vertexMap[idx + width] - vertexMap[idx - width]).cross(vertexMap[idx + 1] - vertexMap[idx - 1]);
 		normalMap[idx].normalize();
 	}
 }
@@ -98,10 +194,10 @@ __host__ PointCloud::~PointCloud()
 	cudaFree(m_points);
 	cudaFree(m_normals);
 	cudaFree(m_depthMap);
-	if(m_pointsOnCPU)
-	free(m_points_cpu);
-	if(m_normalsOnCPU)
-	free(m_normals_cpu);
+	if (m_pointsOnCPU)
+		free(m_points_cpu);
+	if (m_normalsOnCPU)
+		free(m_normals_cpu);
 }
 
 __host__ Vector3f *PointCloud::getPointsCPU()

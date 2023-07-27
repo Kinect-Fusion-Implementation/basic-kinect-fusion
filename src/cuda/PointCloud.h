@@ -1,6 +1,5 @@
 #pragma once
 #include "../kinect_fusion/Eigen.h"
-#include <iostream>
 
 class PointCloud
 {

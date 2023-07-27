@@ -9,6 +9,8 @@ __host__ ICPOptimizer::ICPOptimizer(Matrix3f intrinsics, unsigned int width, uns
 {
     // Initialized with Camera Matrix and threshold values. These should stay the same for all iterations and frames
     m_intrinsics = intrinsics;
+    m_width = width;
+    m_height = height;
 
     // Sets threshold values for vertex and normal difference in correspondance search
     m_vertex_diff_threshold = vertex_diff_threshold;
@@ -28,15 +30,16 @@ __host__ Matrix4f ICPOptimizer::optimize(PointCloudPyramid &currentFramePyramid,
     std::vector<PointCloud> sourcePointClouds = currentFramePyramid.getPointClouds();
     // Initialize frame transformation with identity matrix
     Matrix4f currentToPreviousFrame = Matrix4f::Identity();
-    // Iterate over levels for pointClouds | We assume that levels match for both pyramids
-    for (int i = sourcePointClouds.size() - 1; i >= 0; i--)
+    // Iterate over levels for pointClouds the higher the level, the smaller the resolution (level 0 contains original resolution)
+    for (int level = sourcePointClouds.size() - 1; level >= 0; level--)
     {
-        std::cout << "Level: " << i << std::endl;
-        for (unsigned int k = 0; k < m_iterations_per_level[i]; k++)
+        std::cout << "Level: " << level << std::endl;
+        for (unsigned int k = 0; k < m_iterations_per_level[level]; k++)
         {
-            std::cout << "Level: " << i << " Iteration: " << k << std::endl;
-            // TODO: Should this be always pointcloud 0 or point cloud i?
-            Matrix4f inc = pointToPointAndPlaneICP(sourcePointClouds[i], raycastVertexMap, raycastNormalMap, currentToPreviousFrame, prevFrameToGlobal);
+            std::cout << "Level: " << level << " Iteration: " << k << std::endl;
+            // TODO: Should this be always pointcloud 0 or point cloud level?
+            Matrix4f inc = pointToPointAndPlaneICP(sourcePointClouds[level], raycastVertexMap, raycastNormalMap, currentToPreviousFrame, prevFrameToGlobal, level);
+            /*
             // TODO: Check if enough correspondances were
             std::cout << "Incremental Matrix: " << std::endl
                       << inc << std::endl;
@@ -49,6 +52,7 @@ __host__ Matrix4f ICPOptimizer::optimize(PointCloudPyramid &currentFramePyramid,
                       << currentToPreviousFrame.determinant() << std::endl;
             std::cout << "Current to Previous Frame: " << std::endl
                       << currentToPreviousFrame << std::endl;
+            */
         }
     }
     return prevFrameToGlobal * currentToPreviousFrame;
@@ -59,8 +63,13 @@ __device__ bool isFinite(Vector3f vector)
     return isfinite(vector.x()) && isfinite(vector.y()) && isfinite(vector.z());
 }
 
-__global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVertices, Vector3f *currentFrameNormals, Vector3f *vertexMap, Vector3f *normalMap,
-                                                      Vector3f *matchVertexMap, Vector3f *matchNormalMap,
+/**
+ * Computes the correspondences for the currentFrame vertices
+ * width and height have to be matched to the pyramid level that should be computed!
+ * At level 0, this would be the original image dimensions.
+ */
+__global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVertices, Vector3f *currentFrameNormals, Vector3f *raycastVertexMap, Vector3f *raycastNormalMap,
+                                                      Vector3f *matchedVertexMap, Vector3f *matchedNormalMap,
                                                       Matrix3f intrinsics, const Matrix4f currentFrameToPrevFrameTransformation, const Matrix4f prevFrameToGlobalTransform,
                                                       unsigned int width, unsigned int height, float vertex_diff_threshold, float normal_diff_threshold, float minf,
                                                       Eigen::Matrix<float, 6, 6> *matrices, Eigen::Matrix<float, 6, 1> *vectors, float pointToPointWeight)
@@ -84,8 +93,8 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
         if (0 <= indexedCurrentVertex[0] && int(indexedCurrentVertex[0]) < width && 0 <= indexedCurrentVertex[1] && int(indexedCurrentVertex[1]) < height)
         {
             unsigned int pixelCoordinates = int(indexedCurrentVertex[0]) + int(indexedCurrentVertex[1]) * width;
-            Vector3f matchedVertex = vertexMap[pixelCoordinates];
-            Vector3f matchedNormal = normalMap[pixelCoordinates];
+            Vector3f matchedVertex = raycastVertexMap[pixelCoordinates];
+            Vector3f matchedNormal = raycastNormalMap[pixelCoordinates];
 
             if (isFinite(matchedVertex) && isFinite(matchedNormal))
             {
@@ -95,10 +104,9 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
                     if ((1 - matchedVertex.dot(rotation * normal)) < normal_diff_threshold)
                     {
                         // We found a match!
-                        matchVertexMap[idx] = matchedVertex;
-                        matchNormalMap[idx] = matchedNormal;
+                        matchedVertexMap[idx] = matchedVertex;
+                        matchedNormalMap[idx] = matchedNormal;
 
-                        //
                         if (pointToPointWeight > 0)
                         {
                             buildPointToPointErrorSystem(idx, vertex, matchedVertex, matchedNormal, matrices, vectors, pointToPointWeight);
@@ -112,8 +120,8 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
             }
         }
     }
-    matchVertexMap[idx] = Vector3f(minf, minf, minf);
-    matchNormalMap[idx] = Vector3f(minf, minf, minf);
+    matchedVertexMap[idx] = Vector3f(minf, minf, minf);
+    matchedNormalMap[idx] = Vector3f(minf, minf, minf);
 }
 
 // ---- Correspondance Search ----
@@ -122,43 +130,73 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
  * returns: matched vertices and normals for every point stored on DEVICE
  *          If a point got no correspondence, the corresponding entry in the correspondence maps is MINF vector
  */
-__host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPointCloud, Vector3f *vertexMap, Vector3f *normalMap, const Matrix4f &currentFrameToPrevFrameTransformation, const Matrix4f &prevFrameToGlobalTransform)
+__host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPointCloud, Vector3f *raycastVertexMap, Vector3f *raycastNormalMap,
+                                                        const Matrix4f &currentFrameToPrevFrameTransformation, const Matrix4f &prevFrameToGlobalTransform,
+                                                        unsigned int level)
 {
-    unsigned int numberPoints = m_width * m_height;
+    unsigned int numberPoints = (m_width >> level) * (m_height >> level);
     dim3 threadBlocks(20);
     dim3 blocks(numberPoints / 20);
     Vector3f *currentFrameVertices = currentPointCloud.getPoints();
     Vector3f *currentFrameNormals = currentPointCloud.getNormals();
-    Vector3f *matchVertexMap;
-    Vector3f *matchNormalMap;
+    Vector3f *matchedVertexMap;
+    Vector3f *matchedNormalMap;
     Eigen::Matrix<float, 6, 6> *matrices;
     Eigen::Matrix<float, 6, 1> *vectors;
-    cudaMalloc(&matchVertexMap, numberPoints * sizeof(Vector3f));
-    cudaMalloc(&matchNormalMap, numberPoints * sizeof(Vector3f));
+    cudaMalloc(&matchedVertexMap, numberPoints * sizeof(Vector3f));
+    cudaMalloc(&matchedNormalMap, numberPoints * sizeof(Vector3f));
     cudaMalloc(&matrices, sizeof(Eigen::Matrix<float, 6, 6>) * numberPoints);
     cudaMalloc(&vectors, sizeof(Eigen::Matrix<float, 6, 1>) * numberPoints);
-    computeCorrespondencesAndSystemKernel<<<blocks, threadBlocks>>>(currentFrameVertices, currentFrameNormals, vertexMap, normalMap,
-                                                                    matchVertexMap, matchNormalMap,
+    computeCorrespondencesAndSystemKernel<<<blocks, threadBlocks>>>(currentFrameVertices, currentFrameNormals, raycastVertexMap, raycastNormalMap,
+                                                                    matchedVertexMap, matchedNormalMap,
                                                                     m_intrinsics, currentFrameToPrevFrameTransformation, prevFrameToGlobalTransform,
-                                                                    m_width, m_height, m_vertex_diff_threshold, m_normal_diff_threshold, MINF,
+                                                                    m_width >> level, m_height >> level, m_vertex_diff_threshold, m_normal_diff_threshold, MINF,
                                                                     matrices, vectors, m_pointToPointWeight);
     Eigen::Matrix<float, 6, 6> *matricesCPU = new Eigen::Matrix<float, 6, 6>[numberPoints];
     Eigen::Matrix<float, 6, 1> *vectorsCPU = new Eigen::Matrix<float, 6, 1>[numberPoints];
-    Vector3f *matchedVertices = new Vector3f[numberPoints];
+    Vector3f *matchedVertexMapCPU = new Vector3f[numberPoints];
     cudaMemcpy(matricesCPU, matrices, numberPoints * sizeof(Eigen::Matrix<float, 6, 6>), cudaMemcpyDeviceToHost);
     cudaMemcpy(vectorsCPU, vectors, numberPoints * sizeof(Eigen::Matrix<float, 6, 1>), cudaMemcpyDeviceToHost);
-    cudaMemcpy(matchedVertices, matchVertexMap, numberPoints * sizeof(Vector3f), cudaMemcpyDeviceToHost);
+    cudaMemcpy(matchedVertexMapCPU, matchedVertexMap, numberPoints * sizeof(Vector3f), cudaMemcpyDeviceToHost);
     Eigen::Matrix<float, 6, 6> designMatrix = Eigen::Matrix<float, 6, 6>::Zero();
     Eigen::Matrix<float, 6, 1> designVector = Eigen::Matrix<float, 6, 1>::Zero();
     for (size_t i = 0; i < numberPoints; i++)
     {
-        // If we got a match, the matched point is not minf vector, and then the system is valid
-        if (matchedVertices[i].allFinite())
+        // If we got a match, the matched vertex is not a minf vector, and then the corresponding matrix and vector are valid
+        if (matchedVertexMapCPU[i].allFinite())
         {
             designMatrix += matricesCPU[i];
             designVector += vectorsCPU[i];
         }
     }
+    /*
+    printf("design matrix:\n"
+           "%f %f %f %f %f %f\n"
+           "%f %f %f %f %f %f\n"
+           "%f %f %f %f %f %f\n"
+           "%f %f %f %f %f %f\n"
+           "%f %f %f %f %f %f\n"
+           "%f %f %f %f %f %f\n",
+           designMatrix(0, 0), designMatrix(0, 1), designMatrix(0, 2), designMatrix(0, 3), designMatrix(0, 4), designMatrix(0, 5),
+           designMatrix(1, 0), designMatrix(0, 1), designMatrix(0, 2), designMatrix(0, 3), designMatrix(0, 4), designMatrix(1, 5),
+           designMatrix(2, 0), designMatrix(2, 1), designMatrix(2, 2), designMatrix(2, 3), designMatrix(2, 4), designMatrix(2, 5),
+           designMatrix(3, 0), designMatrix(3, 1), designMatrix(3, 2), designMatrix(3, 3), designMatrix(3, 4), designMatrix(3, 5),
+           designMatrix(4, 0), designMatrix(4, 1), designMatrix(4, 2), designMatrix(4, 3), designMatrix(4, 4), designMatrix(4, 5),
+           designMatrix(5, 0), designMatrix(5, 1), designMatrix(5, 2), designMatrix(5, 3), designMatrix(5, 4), designMatrix(5, 5));
+    printf("design vector:\n"
+           "%f\n"
+           "%f\n"
+           "%f\n"
+           "%f\n"
+           "%f\n"
+           "%f\n",
+           designMatrix(0, 0),
+           designMatrix(1, 0),
+           designMatrix(2, 0),
+           designMatrix(3, 0),
+           designMatrix(4, 0),
+           designMatrix(5, 0));
+    */
     // solution -> (beta, gamma, alpha, tx, ty, tz)
     Eigen::Matrix<float, 6, 1> solution = (designMatrix.llt()).solve(designVector);
 
@@ -167,6 +205,20 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPoint
         -solution(2), 1, solution(0), solution(4),
         solution(1), -solution(0), 1, solution(5),
         0, 0, 0, 1;
+
+    printf("output matrix:\n"
+           "%f %f %f %f\n"
+           "%f %f %f %f\n"
+           "%f %f %f %f\n"
+           "%f %f %f %f\n",
+           output(0, 0), output(0, 1), output(0, 2), output(0, 3),
+           output(1, 0), output(0, 1), output(0, 2), output(0, 3),
+           output(2, 0), output(2, 1), output(2, 2), output(2, 3),
+           output(3, 0), output(3, 1), output(3, 2), output(3, 3));
+    printf("determinant:\n"
+           "%f\n",
+           output.determinant()
+    );
     return output;
 }
 
@@ -188,6 +240,7 @@ __device__ void buildPointToPlaneErrorSystem(unsigned int idx, Vector3f &current
 
     // A contains the dot product of the skew-symmetric matrix form of the currentVertex and the targetNormal and is the matrix we are optimizing over
     Eigen::Matrix<float, 6, 1> A_t = G.transpose() * matchedNormal;
+
     Eigen::Matrix<float, 6, 6> A_tA = A_t * A_t.transpose();
     // b contains the dot product of the targetNormal and the difference between the targetVertex and the currentVertex
     Eigen::Matrix<float, 6, 1> b = A_t * (matchedNormal.transpose() * (matchedVertex - currentVertex));
