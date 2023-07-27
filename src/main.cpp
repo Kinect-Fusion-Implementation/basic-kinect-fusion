@@ -96,11 +96,14 @@ int main()
                 std::cout << "Computing the pyramid took: " << std::chrono::duration_cast<std::chrono::milliseconds>(pyramidComputeEnd - pyramidComputeStart).count() << " ms" << std::endl;
 #endif
 #if SAVE_IMAGE_MODE
-                for (size_t i = 0; i < pyramid.getPointClouds().size(); i++)
+                if (idx % 50 == 0)
                 {
-                        std::cout << "Generating mesh for level " << i << std::endl;
-                        ImageUtil::saveNormalMapToImage((float *)pyramid.getPointClouds().at(i).getNormalsCPU(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("PyramidImage_") + std::to_string(idx), "");
-                        writeMesh(pyramid.getPointClouds().at(i).getPointsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, Configuration::getOutputDirectory() + std::string("mesh_") + std::to_string(i) + ".off");
+                        for (size_t i = 0; i < pyramid.getPointClouds().size(); i++)
+                        {
+                                std::cout << "Generating mesh for level " << i << std::endl;
+                                ImageUtil::saveNormalMapToImage((float *)pyramid.getPointClouds().at(i).getNormalsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, std::string("PyramidImage_") + std::to_string(idx) + "_level" + std::to_string(i), "");
+                                writeMesh(pyramid.getPointClouds().at(i).getPointsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, Configuration::getOutputDirectory() + std::string("mesh_") + std::to_string(idx) + "_level" + std::to_string(i) + ".off");
+                        }
                 }
 #endif
 #if EVAL_MODE
@@ -123,14 +126,13 @@ int main()
                 std::cout << "Computing raycasting took: " << std::chrono::duration_cast<std::chrono::milliseconds>(raycastStop - raycastStart).count() << " ms" << std::endl;
                 auto icpStart = std::chrono::high_resolution_clock::now();
 #endif
-                prevFrameToGlobal = optimizer.optimize(pyramid, raycast.m_vertexMapGPU, raycast.m_normalMapGPU, prevFrameToGlobal);
+                // prevFrameToGlobal = optimizer.optimize(pyramid, raycast.m_vertexMapGPU, raycast.m_normalMapGPU, prevFrameToGlobal);
 #if EVAL_MODE
                 auto icpEnd = std::chrono::high_resolution_clock::now();
                 auto frameComputeEnd = std::chrono::high_resolution_clock::now();
                 std::cout << "Computing ICP took: " << std::chrono::duration_cast<std::chrono::milliseconds>(icpEnd - icpStart).count() << " ms" << std::endl;
                 std::cout << "Computing the frame took: " << std::chrono::duration_cast<std::chrono::milliseconds>(frameComputeEnd - frameComputeStart).count() << " ms" << std::endl;
 #endif
-                return 0;
         }
 
         auto totalComputeStop = std::chrono::high_resolution_clock::now();
