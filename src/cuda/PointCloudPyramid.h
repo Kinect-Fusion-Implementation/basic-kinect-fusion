@@ -33,7 +33,6 @@ public:
 	 *
 	 * depthMap: The original depth map, stored in device memory, owned by the sensor! Do not free this!
 	 * depthIntrinsics: The matrix which maps from camera space to pixel space
-	 * depthExtrinsics: The matrix which maps from world space to camera space
 	 * width: The width of the depth map, must be positive
 	 * height: The height of the depth map, must be positive
 	 * levels: The number of levels of the pyramid
@@ -42,7 +41,7 @@ public:
 	 * sigmaR: Parameter for bilinear smoothing
 	 * sigmaS: Parameter for bilinear smoothing
 	 */
-	PointCloudPyramid(float *depthMap, const Matrix3f &depthIntrinsics, const Matrix4f &depthExtrinsics,
+	PointCloudPyramid(float *depthMap, const Matrix3f &depthIntrinsics, 
 					  const unsigned int width, const unsigned int height, const unsigned int levels,
 					  const unsigned int windowSize, const unsigned int blockSize, const float sigmaR, const float sigmaS);
 

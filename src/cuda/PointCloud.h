@@ -20,7 +20,7 @@ public:
 	/**
 	 * Receives the depthMap pointer that points to the location of the depth values in DEVICE memory
 	*/
-	PointCloud(float *depthMap, const Matrix3f &depthIntrinsics, const Matrix4f &depthExtrinsics,
+	PointCloud(float *depthMap, const Matrix3f &depthIntrinsics,
 			   const unsigned int width, const unsigned int height, int level, const unsigned int maxDistance = 10);
 
 	~PointCloud();

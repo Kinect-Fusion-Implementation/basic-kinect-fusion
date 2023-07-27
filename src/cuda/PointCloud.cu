@@ -1,7 +1,7 @@
 #include "PointCloud.h"
 #include <iostream>
 
-__global__ void computeVerticesKernel(float *depthMap, Vector3f *vertexMap, const Matrix3f depthIntrinsics, const Matrix4f depthExtrinsics, const unsigned int width, const unsigned int height, int level, float minf)
+__global__ void computeVerticesKernel(float *depthMap, Vector3f *vertexMap, const Matrix3f depthIntrinsics, const unsigned int width, const unsigned int height, int level, float minf)
 {
 	unsigned w = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned h = blockIdx.y * blockDim.y + threadIdx.y;
@@ -18,11 +18,6 @@ __global__ void computeVerticesKernel(float *depthMap, Vector3f *vertexMap, cons
 	float cX = depthIntrinsics(0, 2) / pow(2, level);
 	float cY = depthIntrinsics(1, 2) / pow(2, level);
 
-	// Compute inverse depth extrinsics.
-	Matrix4f depthExtrinsicsInv = depthExtrinsics.inverse();
-	Matrix3f rotationInv = depthExtrinsicsInv.block(0, 0, 3, 3);
-	Vector3f translationInv = depthExtrinsicsInv.block(0, 3, 3, 1);
-
 	// For every pixel row.
 	unsigned int idx = h * width + w; // linearized index
 	float depth = depthMap[idx];
@@ -33,7 +28,7 @@ __global__ void computeVerticesKernel(float *depthMap, Vector3f *vertexMap, cons
 	else
 	{
 		// Back-projection to camera space.
-		vertexMap[idx] = rotationInv * Vector3f((w - cX) / fovX * depth, (h - cY) / fovY * depth, depth) + translationInv;
+		vertexMap[idx] = Vector3f((w - cX) / fovX * depth, (h - cY) / fovY * depth, depth);
 		/*
 		if (w == 353 && h == 206)
 		{
@@ -169,7 +164,7 @@ __global__ void computeNormalsKernel(float *depthMap, Vector3f *vertexMap, Vecto
 	}
 }
 
-__host__ PointCloud::PointCloud(float *depthMap, const Matrix3f &depthIntrinsics, const Matrix4f &depthExtrinsics, const unsigned int width, const unsigned int height, int level, const unsigned int maxDistance) : m_width(width), m_height(height)
+__host__ PointCloud::PointCloud(float *depthMap, const Matrix3f &depthIntrinsics, const unsigned int width, const unsigned int height, int level, const unsigned int maxDistance) : m_width(width), m_height(height)
 {
 	// The provided depthmap should already be located on the DEVICE
 	dim3 threadBlocks(20, 20);
@@ -180,7 +175,7 @@ __host__ PointCloud::PointCloud(float *depthMap, const Matrix3f &depthIntrinsics
 	cudaMalloc(&m_points, m_memorySize);
 	cudaMalloc(&m_normals, m_memorySize);
 
-	computeVerticesKernel<<<blocks, threadBlocks>>>(m_depthMap, m_points, depthIntrinsics, depthExtrinsics, width, height, level, MINF);
+	computeVerticesKernel<<<blocks, threadBlocks>>>(m_depthMap, m_points, depthIntrinsics, width, height, level, MINF);
 	computeNormalsKernel<<<blocks, threadBlocks>>>(m_depthMap, m_points, m_normals, width, height, MINF);
 
 	// Set flag that the device memory still has to be copied

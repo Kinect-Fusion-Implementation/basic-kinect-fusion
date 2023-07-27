@@ -33,10 +33,10 @@ __host__ Matrix4f ICPOptimizer::optimize(PointCloudPyramid &currentFramePyramid,
     // Iterate over levels for pointClouds the higher the level, the smaller the resolution (level 0 contains original resolution)
     for (int level = sourcePointClouds.size() - 1; level >= 0; level--)
     {
-        std::cout << "Level: " << level << std::endl;
+        //std::cout << "Level: " << level << std::endl;
         for (unsigned int k = 0; k < m_iterations_per_level[level]; k++)
         {
-            std::cout << "Level: " << level << " Iteration: " << k << std::endl;
+            //std::cout << "Level: " << level << " Iteration: " << k << std::endl;
             // TODO: Should this be always pointcloud 0 or point cloud level?
             Matrix4f inc = pointToPointAndPlaneICP(sourcePointClouds[level], raycastVertexMap, raycastNormalMap, currentToPreviousFrame, prevFrameToGlobal, level);
             /*
@@ -136,10 +136,6 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPoint
     unsigned int numberPoints = (m_width >> level) * (m_height >> level);
     dim3 threadBlocks(20);
     dim3 blocks(numberPoints / 20);
-    if (level == 2)
-    {
-        std::cout << "Number points: " << numberPoints << std::endl;
-    }
     Vector3f *currentFrameVertices = currentPointCloud.getPoints();
     Vector3f *currentFrameNormals = currentPointCloud.getNormals();
     Vector3f *matchedVertexMap;
@@ -163,7 +159,6 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPoint
     cudaMemcpy(matchedVertexMapCPU, matchedVertexMap, numberPoints * sizeof(Vector3f), cudaMemcpyDeviceToHost);
     Eigen::Matrix<float, 6, 6> designMatrix = Eigen::Matrix<float, 6, 6>::Zero();
     Eigen::Matrix<float, 6, 1> designVector = Eigen::Matrix<float, 6, 1>::Zero();
-    size_t matches = 0;
     for (size_t i = 0; i < numberPoints; i++)
     {
         // If we got a match, the matched vertex is not a minf vector, and then the corresponding matrix and vector are valid
@@ -171,41 +166,8 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPoint
         {
             designMatrix += matricesCPU[i];
             designVector += vectorsCPU[i];
-            matches++;
         }
     }
-    if (level == 2)
-    {
-        std::cout << "Number matches: " << matches << std::endl;
-    }
-    /*
-    printf("design matrix:\n"
-           "%f %f %f %f %f %f\n"
-           "%f %f %f %f %f %f\n"
-           "%f %f %f %f %f %f\n"
-           "%f %f %f %f %f %f\n"
-           "%f %f %f %f %f %f\n"
-           "%f %f %f %f %f %f\n",
-           designMatrix(0, 0), designMatrix(0, 1), designMatrix(0, 2), designMatrix(0, 3), designMatrix(0, 4), designMatrix(0, 5),
-           designMatrix(1, 0), designMatrix(0, 1), designMatrix(0, 2), designMatrix(0, 3), designMatrix(0, 4), designMatrix(1, 5),
-           designMatrix(2, 0), designMatrix(2, 1), designMatrix(2, 2), designMatrix(2, 3), designMatrix(2, 4), designMatrix(2, 5),
-           designMatrix(3, 0), designMatrix(3, 1), designMatrix(3, 2), designMatrix(3, 3), designMatrix(3, 4), designMatrix(3, 5),
-           designMatrix(4, 0), designMatrix(4, 1), designMatrix(4, 2), designMatrix(4, 3), designMatrix(4, 4), designMatrix(4, 5),
-           designMatrix(5, 0), designMatrix(5, 1), designMatrix(5, 2), designMatrix(5, 3), designMatrix(5, 4), designMatrix(5, 5));
-    printf("design vector:\n"
-           "%f\n"
-           "%f\n"
-           "%f\n"
-           "%f\n"
-           "%f\n"
-           "%f\n",
-           designMatrix(0, 0),
-           designMatrix(1, 0),
-           designMatrix(2, 0),
-           designMatrix(3, 0),
-           designMatrix(4, 0),
-           designMatrix(5, 0));
-    */
     // solution -> (beta, gamma, alpha, tx, ty, tz)
     Eigen::Matrix<float, 6, 1> solution = (designMatrix.llt()).solve(designVector);
 
@@ -214,19 +176,6 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPoint
         -solution(2), 1, solution(0), solution(4),
         solution(1), -solution(0), 1, solution(5),
         0, 0, 0, 1;
-
-    printf("output matrix:\n"
-           "%f %f %f %f\n"
-           "%f %f %f %f\n"
-           "%f %f %f %f\n"
-           "%f %f %f %f\n",
-           output(0, 0), output(0, 1), output(0, 2), output(0, 3),
-           output(1, 0), output(0, 1), output(0, 2), output(0, 3),
-           output(2, 0), output(2, 1), output(2, 2), output(2, 3),
-           output(3, 0), output(3, 1), output(3, 2), output(3, 3));
-    printf("determinant:\n"
-           "%f\n",
-           output.determinant());
     return output;
 }
 
