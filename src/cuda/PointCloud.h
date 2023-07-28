@@ -10,21 +10,22 @@ private:
 	unsigned int m_width;
 	unsigned int m_height;
 	float *m_depthMap;
+	// Manages the points and normals in DEVICE memory
 	Vector3f *m_points;
 	Vector3f *m_normals;
+	// Manages the points and normals in HOST memory
 	Vector3f *m_points_cpu;
 	Vector3f *m_normals_cpu;
-
 
 public:
 	/**
 	 * Receives the depthMap pointer that points to the location of the depth values in DEVICE memory
-	*/
-	PointCloud(float *depthMap, const Matrix3f &depthIntrinsics, const Matrix4f &depthExtrinsics,
+	 */
+	PointCloud(float *depthMap, const Matrix3f &depthIntrinsics,
 			   const unsigned int width, const unsigned int height, int level, const unsigned int maxDistance = 10);
 
 	~PointCloud();
-	
+
 	Vector3f *getPoints()
 	{
 		return m_points;

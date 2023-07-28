@@ -42,7 +42,7 @@ public:
 	 * sigmaR: Parameter for bilinear smoothing
 	 * sigmaS: Parameter for bilinear smoothing
 	 */
-	PointCloudPyramid(float *depthMap, const Matrix3f &depthIntrinsics, const Matrix4f &depthExtrinsics,
+	PointCloudPyramid(float *depthMap, const Matrix3f &depthIntrinsics,
 					  const unsigned int width, const unsigned int height, const unsigned int levels,
 					  const unsigned int windowSize, const unsigned int blockSize, const float sigmaR, const float sigmaS);
 

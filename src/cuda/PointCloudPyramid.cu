@@ -1,7 +1,7 @@
 #include "PointCloudPyramid.h"
 #include <assert.h>
 
-PointCloudPyramid::PointCloudPyramid(float *depthMap, const Matrix3f &depthIntrinsics, const Matrix4f &depthExtrinsics,
+PointCloudPyramid::PointCloudPyramid(float *depthMap, const Matrix3f &depthIntrinsics,
 									 const unsigned int width, const unsigned int height, const unsigned int levels,
 									 const unsigned int windowSize, const unsigned int blockSize, const float sigmaR, const float sigmaS)
 	: rawDepthMap(depthMap), m_width(width), m_height(height), m_windowSize(windowSize), m_blockSize(blockSize)
@@ -23,17 +23,15 @@ PointCloudPyramid::PointCloudPyramid(float *depthMap, const Matrix3f &depthIntri
 	// Construct pyramid of pointClouds
 	// point cloud takes ownership of depth map after construction, no deletion required!
 
-	cudaDeviceSynchronize();
-	pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, m_width, m_height, 0);
+	pointClouds.emplace_back(currentDepthMap, depthIntrinsics, m_width, m_height, 0);
 	for (size_t i = 0; i < levels;)
 	{
 		// Compute subsampled depth map
 		currentDepthMap = subsampleDepthMap(currentDepthMap, m_width >> i, m_height >> i, sigmaR);
 		i++;
 
-		cudaDeviceSynchronize();
 		// Store subsampled depth map in pyramid -> pyramid handles deletion of depth map!
-		pointClouds.emplace_back(currentDepthMap, depthIntrinsics, depthExtrinsics, m_width >> i, m_height >> i, i);
+		pointClouds.emplace_back(currentDepthMap, depthIntrinsics, m_width >> i, m_height >> i, i);
 	}
 }
 
