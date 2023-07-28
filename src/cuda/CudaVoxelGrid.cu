@@ -3,7 +3,6 @@
 
 __host__ RaycastImage::~RaycastImage()
 {
-	std::cout << "Destructing raycast image..." << std::endl;
 	if (m_vertexMap != nullptr)
 	{
 		delete[] m_vertexMap;
@@ -18,7 +17,7 @@ __host__ RaycastImage::~RaycastImage()
 	}
 	if (m_normalMapGPU != nullptr)
 	{
-		cudaFree(m_vertexMapGPU);
+		cudaFree(m_normalMapGPU);
 	}
 }
 
@@ -124,6 +123,7 @@ __host__ void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, fl
 	cudaMemcpy(depthDataGPU, depthMap, sizeof(float) * depthMapWidth * depthMapHeight, cudaMemcpyHostToDevice);
 
 	updateTSDFKernel<<<blocks, threadBlocks>>>(extrinsics, intrinsics, depthDataGPU, depthMapWidth, depthMapHeight, m_truncation, m_gridOriginOffset.x(), m_gridOriginOffset.y(), m_gridOriginOffset.z(), m_spatialVoxelScale, m_voxelGrid, m_numberVoxelsDepth, m_numberVoxelsHeight);
+	cudaFree(depthDataGPU);
 }
 
 __global__ void raycastVoxelGridKernel(Matrix4f poseMatrix, Matrix4f extrinsics, Matrix3f intrinsics, Vector3f *vertexMap, Vector3f *normalMap,
