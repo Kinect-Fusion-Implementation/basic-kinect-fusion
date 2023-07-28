@@ -37,7 +37,9 @@ private:
      * returns: list of correspondences i.e. V_k, N_k, V_k-1
      *
      */
-    Matrix4f pointToPointAndPlaneICP(PointCloud &currentPointCloud, Vector3f *vertexMap, Vector3f *normalMap, const Matrix4f &currentFrameToPrevFrameTransformation, const Matrix4f &prevFrameToGlobalTransform, unsigned int level);
+    Matrix4f pointToPointAndPlaneICP(Vector3f *currentFramePoints, Vector3f *currentFrameNormals, Vector3f *vertexMap, Vector3f *normalMap,
+                                     const Matrix4f &currentFrameToPrevFrameTransformation, const Matrix4f &prevFrameToGlobalTransform,
+                                     unsigned int level, unsigned int iteration);
 };
 
 void buildPointToPlaneErrorSystem(unsigned int idx, Vector3f &currentVertex,

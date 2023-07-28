@@ -124,7 +124,6 @@ __host__ void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, fl
 	cudaMemcpy(depthDataGPU, depthMap, sizeof(float) * depthMapWidth * depthMapHeight, cudaMemcpyHostToDevice);
 
 	updateTSDFKernel<<<blocks, threadBlocks>>>(extrinsics, intrinsics, depthDataGPU, depthMapWidth, depthMapHeight, m_truncation, m_gridOriginOffset.x(), m_gridOriginOffset.y(), m_gridOriginOffset.z(), m_spatialVoxelScale, m_voxelGrid, m_numberVoxelsDepth, m_numberVoxelsHeight);
-	cudaDeviceSynchronize();
 }
 
 __global__ void raycastVoxelGridKernel(Matrix4f poseMatrix, Matrix4f extrinsics, Matrix3f intrinsics, Vector3f *vertexMap, Vector3f *normalMap,

@@ -27,16 +27,16 @@ __host__ ICPOptimizer::ICPOptimizer(Matrix3f intrinsics, unsigned int width, uns
  */
 __host__ Matrix4f ICPOptimizer::optimize(PointCloudPyramid &currentFramePyramid, Vector3f *raycastVertexMap, Vector3f *raycastNormalMap, const Matrix4f &prevFrameToGlobal)
 {
-    std::vector<PointCloud> &sourcePointClouds = currentFramePyramid.getPointClouds();
     // Initialize frame transformation with identity matrix
     Matrix4f currentToPreviousFrame = Matrix4f::Identity();
     // Iterate over levels for pointClouds the higher the level, the smaller the resolution (level 0 contains original resolution)
-    for (int level = sourcePointClouds.size() - 1; level >= 0; level--)
+    for (int level = currentFramePyramid.getPointClouds().size() - 1; level >= 0; level--)
     {
-        for (unsigned int k = 0; k < m_iterations_per_level[level]; k++)
+        for (unsigned int iteration = 0; iteration < m_iterations_per_level[level]; iteration++)
         {
             // TODO: Should this be always pointcloud 0 or point cloud level?
-            Matrix4f inc = pointToPointAndPlaneICP(sourcePointClouds[level], raycastVertexMap, raycastNormalMap, currentToPreviousFrame, prevFrameToGlobal, level);
+            Matrix4f inc = pointToPointAndPlaneICP(currentFramePyramid.getPointClouds().at(level).getPoints(), currentFramePyramid.getPointClouds().at(level).getNormals(),
+                                                   raycastVertexMap, raycastNormalMap, currentToPreviousFrame, prevFrameToGlobal, level, iteration);
             /*
             // TODO: Check if enough correspondances were
             std::cout << "Incremental Matrix: " << std::endl
@@ -83,15 +83,18 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
     Vector3f normal = currentFrameNormals[idx];
     if (isFinite(vertex) && isFinite(normal))
     {
+
         // Find corresponding vertex in previous frame
+        // First transform the vertex into the previous frame
         Vector3f transformedCurrentVertex = (currentFrameToPrevFrameTransformation.block<3, 3>(0, 0) * vertex) + currentFrameToPrevFrameTransformation.block<3, 1>(0, 3);
+        // Project transformed Vertex into the cameras screen space
         Vector3f homogeneousScreenSpace = intrinsics * transformedCurrentVertex;
-        Vector2f indexedCurrentVertex = Vector2f(homogeneousScreenSpace.x() / homogeneousScreenSpace.z(), homogeneousScreenSpace.y() / homogeneousScreenSpace.z());
+        Vector2f normalizedSceenSpaceCoordinates = Vector2f(homogeneousScreenSpace.x() / homogeneousScreenSpace.z(), homogeneousScreenSpace.y() / homogeneousScreenSpace.z());
 
         // Check if transformedCurrentVertex is in the image
-        if (0 <= indexedCurrentVertex[0] && int(indexedCurrentVertex[0]) < width && 0 <= indexedCurrentVertex[1] && int(indexedCurrentVertex[1]) < height)
+        if (0 <= normalizedSceenSpaceCoordinates.x() && int(normalizedSceenSpaceCoordinates.x()) < width && 0 <= normalizedSceenSpaceCoordinates.y() && int(normalizedSceenSpaceCoordinates.y()) < height)
         {
-            unsigned int pixelCoordinates = int(indexedCurrentVertex[0]) + int(indexedCurrentVertex[1]) * width;
+            unsigned int pixelCoordinates = int(normalizedSceenSpaceCoordinates.x()) + int(normalizedSceenSpaceCoordinates.y()) * width;
             Vector3f matchedVertex = raycastVertexMap[pixelCoordinates];
             Vector3f matchedNormal = raycastNormalMap[pixelCoordinates];
 
@@ -129,15 +132,13 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
  * returns: matched vertices and normals for every point stored on DEVICE
  *          If a point got no correspondence, the corresponding entry in the correspondence maps is MINF vector
  */
-__host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPointCloud, Vector3f *raycastVertexMap, Vector3f *raycastNormalMap,
+__host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVertices, Vector3f *currentFrameNormals, Vector3f *raycastVertexMap, Vector3f *raycastNormalMap,
                                                         const Matrix4f &currentFrameToPrevFrameTransformation, const Matrix4f &prevFrameToGlobalTransform,
-                                                        unsigned int level)
+                                                        unsigned int level, unsigned int iteration)
 {
     unsigned int numberPoints = (m_width >> level) * (m_height >> level);
     dim3 threadBlocks(20);
     dim3 blocks(numberPoints / 20);
-    Vector3f *currentFrameVertices = currentPointCloud.getPoints();
-    Vector3f *currentFrameNormals = currentPointCloud.getNormals();
     Vector3f *matchedVertexMap;
     Vector3f *matchedNormalMap;
     Eigen::Matrix<float, 6, 6> *matrices;
@@ -159,6 +160,7 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPoint
     cudaMemcpy(matchedVertexMapCPU, matchedVertexMap, numberPoints * sizeof(Vector3f), cudaMemcpyDeviceToHost);
     Eigen::Matrix<float, 6, 6> designMatrix = Eigen::Matrix<float, 6, 6>::Zero();
     Eigen::Matrix<float, 6, 1> designVector = Eigen::Matrix<float, 6, 1>::Zero();
+    int matches = 0;
     for (size_t i = 0; i < numberPoints; i++)
     {
         // If we got a match, the matched vertex is not a minf vector, and then the corresponding matrix and vector are valid
@@ -166,11 +168,15 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(PointCloud &currentPoint
         {
             designMatrix += matricesCPU[i];
             designVector += vectorsCPU[i];
+            matches++;
         }
     }
+    if (matches == 0) {
+        std::cout << "No matches found for level: " << level << " iteration: " << iteration << std::endl; 
+    }
     // solution -> (beta, gamma, alpha, tx, ty, tz)
-    Eigen::Matrix<float, 6, 1> solution = (designMatrix.llt()).solve(designVector);
-
+    Eigen::Matrix<float, 6, 1> solution = designMatrix.llt().solve(designVector);
+    std::cout << "Found " << matches << " matches" << std::endl;
     Matrix4f output;
     output << 1, solution(2), -solution(1), solution(3),
         -solution(2), 1, solution(0), solution(4),
