@@ -134,12 +134,10 @@ int main()
                 std::cout << "Computing ICP took: " << std::chrono::duration_cast<std::chrono::milliseconds>(icpEnd - icpStart).count() << " ms" << std::endl;
                 std::cout << "Computing the frame took: " << std::chrono::duration_cast<std::chrono::milliseconds>(frameComputeEnd - frameComputeStart).count() << " ms" << std::endl;
 #endif
-                if (idx == 700 || (idx > 700 && idx % 20==0))
-                        // At 780 it all fucks up and computation takes 0 ms???
-                        run_marching_cubes(grid, idx);
         }
         auto totalComputeStop = std::chrono::high_resolution_clock::now();
         std::cout << "Computing for all frames took: " << std::chrono::duration_cast<std::chrono::milliseconds>(totalComputeStop - totalComputeStart).count() << " ms" << std::endl;
+        run_marching_cubes(grid, idx);
 #if SAVE_IMAGE_MODE
         auto marchingCubesStart = std::chrono::high_resolution_clock::now();
         auto marchingCubesStop = std::chrono::high_resolution_clock::now();
