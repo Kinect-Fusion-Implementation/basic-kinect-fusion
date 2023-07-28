@@ -102,7 +102,7 @@ int main()
                         {
                                 std::cout << "Generating mesh for level " << i << std::endl;
                                 ImageUtil::saveNormalMapToImage((float *)pyramid.getPointClouds().at(i).getNormalsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, std::string("PyramidImage_") + std::to_string(idx) + "_level" + std::to_string(i), "");
-                                writeMesh(pyramid.getPointClouds().at(i).getPointsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, Configuration::getOutputDirectory() + std::string("mesh_") + std::to_string(idx) + "_level" + std::to_string(i) + ".off");
+                                writeMesh(pyramid.getPointClouds().at(i).getPointsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, Configuration::getOutputDirectory() + std::string("PyramidMesh_") + std::to_string(idx) + "_level" + std::to_string(i) + ".off");
                         }
                 }
 #endif
@@ -118,7 +118,7 @@ int main()
                 if (idx % 50 == 0 || idx > 70 && idx < 100)
                 {
                         ImageUtil::saveNormalMapToImage((float *)raycast.m_normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("RaycastedImage_") + std::to_string(idx), "");
-                        writeMesh(raycast.m_vertexMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), Configuration::getOutputDirectory() + "mesh_" + std::to_string(idx) + ".off");
+                        writeMesh(raycast.m_vertexMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), Configuration::getOutputDirectory() + "RaycastedMesh_" + std::to_string(idx) + ".off");
                 }
 #endif
 #if EVAL_MODE
@@ -137,9 +137,9 @@ int main()
 
         auto totalComputeStop = std::chrono::high_resolution_clock::now();
         std::cout << "Computing for all frames took: " << std::chrono::duration_cast<std::chrono::milliseconds>(totalComputeStop - totalComputeStart).count() << " ms" << std::endl;
+        run_marching_cubes(grid, idx);
 #if SAVE_IMAGE_MODE
         auto marchingCubesStart = std::chrono::high_resolution_clock::now();
-        run_marching_cubes(grid, idx);
         auto marchingCubesStop = std::chrono::high_resolution_clock::now();
         std::cout << "Computing marching cubes took: " << std::chrono::duration_cast<std::chrono::milliseconds>(marchingCubesStop - marchingCubesStart).count() << " ms" << std::endl;
 #endif
