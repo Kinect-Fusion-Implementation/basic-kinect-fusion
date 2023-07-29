@@ -124,30 +124,59 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
             }
         }
     }
+    // If no correspondence was found, set correspondence invalid and the matrix and vector of the system to 0 (neutral element)
     matchedVertexMap[idx] = Vector3f(minf, minf, minf);
     matchedNormalMap[idx] = Vector3f(minf, minf, minf);
+    matrices[idx] = Matrix<float, 6, 6>::Zero();
+    vectors[idx] = Matrix<float, 6, 1>::Zero();
 }
 
-__global__ void reduce(Eigen::Matrix<float, 6, 6> *g_idata, Eigen::Matrix<float, 6, 6> *g_odata)
+// Compute the tree for every block, then again!
+__global__ void reduce(Eigen::Matrix<float, 6, 6> *constraints, Eigen::Matrix<float, 6, 6> *summedConstraint)
 {
-    extern __shared__ Eigen::Matrix<float, 6, 6> sdata[];
+    extern __shared__ Eigen::Matrix<float, 6, 6> matrices[];
     // each thread loads one element from global to shared mem
     unsigned int tid = threadIdx.x;
-    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
-    sdata[tid] = g_idata[i];
+    unsigned int i = blockIdx.x * (blockDim.x * 2) + threadIdx.x;
+    matrices[tid] = constraints[i] + constraints[i + blockDim.x];
+
     __syncthreads();
-    // do reduction in shared mem
     for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1)
     {
         if (tid < s)
         {
-            sdata[tid] += sdata[tid + s];
+            matrices[tid] += matrices[tid + s];
         }
         __syncthreads();
     }
     // write result for this block to global mem
     if (tid == 0)
-        g_odata[blockIdx.x] = sdata[0];
+        summedConstraint[blockIdx.x] = matrices[0];
+}
+
+/**
+ * Reduces per block a total of blockSize * 2 many elements
+ */
+__global__ void reduce(Eigen::Matrix<float, 6, 1> *constraints, Eigen::Matrix<float, 6, 1> *summedConstraint)
+{
+    extern __shared__ Eigen::Matrix<float, 6, 1> vectors[];
+    // each thread loads one element from global to shared mem
+    unsigned int tid = threadIdx.x;
+    unsigned int i = blockIdx.x * (blockDim.x * 2) + threadIdx.x;
+    vectors[tid] = constraints[i] + constraints[i + blockDim.x];
+
+    __syncthreads();
+    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1)
+    {
+        if (tid < s)
+        {
+            vectors[tid] += vectors[tid + s];
+        }
+        __syncthreads();
+    }
+    // write result for this block to global mem
+    if (tid == 0)
+        summedConstraint[blockIdx.x] = vectors[0];
 }
 
 // ---- Correspondance Search ----
@@ -177,30 +206,37 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
                                                                     m_intrinsics, currentFrameToPrevFrameTransformation, prevFrameToGlobalTransform,
                                                                     m_width, m_height, m_vertex_diff_threshold, m_normal_diff_threshold, MINF,
                                                                     matrices, vectors, m_pointToPointWeight, level);
-    // <<<blocks, threadBlocks>>>();
-    Eigen::Matrix<float, 6, 6> *matricesCPU = new Eigen::Matrix<float, 6, 6>[numberPoints];
-    Eigen::Matrix<float, 6, 1> *vectorsCPU = new Eigen::Matrix<float, 6, 1>[numberPoints];
-    Vector3f *matchedVertexMapCPU = new Vector3f[numberPoints];
-    cudaMemcpy(matricesCPU, matrices, numberPoints * sizeof(Eigen::Matrix<float, 6, 6>), cudaMemcpyDeviceToHost);
-    cudaMemcpy(vectorsCPU, vectors, numberPoints * sizeof(Eigen::Matrix<float, 6, 1>), cudaMemcpyDeviceToHost);
-    cudaMemcpy(matchedVertexMapCPU, matchedVertexMap, numberPoints * sizeof(Vector3f), cudaMemcpyDeviceToHost);
+    cudaFree(matchedVertexMap);
+    cudaFree(matchedNormalMap);
+
+    Eigen::Matrix<float, 6, 6> *matrixSum;
+    Eigen::Matrix<float, 6, 1> *vectorSum;
+    blocks = dim3(numberPoints / 800);
+    // First reduction computes partial sums for every block, 400 elements (block size) at a time
+    cudaMalloc(&matrixSum, (blocks.x) * sizeof(Eigen::Matrix<float, 6, 6>));
+    cudaMalloc(&vectorSum, (blocks.x) * sizeof(Eigen::Matrix<float, 6, 1>));
+    blocks = dim3(numberPoints / 800);
+    // Assert should hold for the image sizes of kinect
+    assert(numberPoints / 800 < 400);
+    if (numberPoints / 800 < 400)
+    {
+        std::cerr << "More than one summand will be left!" << std::endl;
+    }
+    reduce<<<blocks, threadBlocks>>>(matrices, matrixSum);
+    reduce<<<blocks, threadBlocks>>>(vectors, vectorSum);
+    // Do the recusion to reduce it to the one element!
+    // For every Block in the previous reduce call, one summand is created, these have to be summed up now
+    threadBlocks = dim3(blocks.x);
+    blocks = dim3(1);
+    reduce<<<blocks, threadBlocks>>>(matrices, matrixSum);
+    reduce<<<blocks, threadBlocks>>>(vectors, vectorSum);
+    cudaFree(matrices);
+    cudaFree(vectors);
+
     Eigen::Matrix<float, 6, 6> designMatrix = Eigen::Matrix<float, 6, 6>::Zero();
     Eigen::Matrix<float, 6, 1> designVector = Eigen::Matrix<float, 6, 1>::Zero();
-    int matches = 0;
-
-    auto startSum = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i < numberPoints; i++)
-    {
-        // If we got a match, the matched vertex is not a minf vector, and then the corresponding matrix and vector are valid
-        if (matchedVertexMapCPU[i].allFinite())
-        {
-            designMatrix += matricesCPU[i];
-            designVector += vectorsCPU[i];
-            matches++;
-        }
-    }
-    auto endSum = std::chrono::high_resolution_clock::now();
-    std::cout << "Summing took: " << std::chrono::duration_cast<std::chrono::milliseconds>(endSum - startSum).count() << " ms" << std::endl;
+    cudaMemcpy(&designMatrix, matrixSum, sizeof(Matrix<float, 6, 6>), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&designVector, matrixSum, sizeof(Matrix<float, 6, 1>), cudaMemcpyDeviceToHost);
 
     // solution -> (beta, gamma, alpha, tx, ty, tz)
     Eigen::Matrix<float, 6, 1> solution = designMatrix.llt().solve(designVector);
@@ -209,6 +245,8 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
         -solution(2), 1, solution(0), solution(4),
         solution(1), -solution(0), 1, solution(5),
         0, 0, 0, 1;
+    cudaFree(matrixSum);
+    cudaFree(vectorSum);
 
     /*
     printf("output matrix:\n"
