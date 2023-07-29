@@ -40,13 +40,15 @@ int icp_accuracy_test()
         int numberVoxelsWidth = roomWidthMeter * voxelsPerMeter;
         int numberVoxelsHeight = roomHeightMeter * voxelsPerMeter;
         int numberVoxelsDepth = roomDepthMeter * voxelsPerMeter;
-        float vertex_diff_threshold = 0.3;
-        float normal_diff_threshold = 0.3;
-        std::vector<int> iterations_per_level = {10, 5, 4};
-        ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertex_diff_threshold, normal_diff_threshold, iterations_per_level);
-        Matrix4f prevFrameToGlobal = Matrix4f::Identity();
         // x,y,z: width, height, depth
         VoxelGrid grid(Vector3f(-2.0, -1.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
+
+        float vertex_diff_threshold = 0.3;
+        float normal_diff_threshold = 0.3;
+        std::vector<int> iterations_per_level = {4, 4, 4};
+        ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertex_diff_threshold, normal_diff_threshold, iterations_per_level);
+        
+        Matrix4f prevFrameToGlobal = Matrix4f::Identity();
         int idx = 0;
         Matrix4f trajectoryOffset;
         auto totalComputeStart = std::chrono::high_resolution_clock::now();
@@ -61,9 +63,12 @@ int icp_accuracy_test()
                 {
                         // We express our world space based on the first trajectory (we set the first trajectory to eye matrix, and express all further camera positions relative to that first camera position)
                         trajectoryOffset = sensor.getTrajectory().inverse();
+                        // Update the TSDF w.r.t. the first camera frame C0 (all other poses/extrinsics are expressions relative to C0)
+                        grid.updateTSDF(Matrix4f::Identity(), sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
+                        idx++;
+                        continue;
                 }
                 idx++;
-                grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
 
                 PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 2, windowSize, blockSize, sigmaR, sigmaS);
 
@@ -87,23 +92,27 @@ int icp_accuracy_test()
                 Matrix4f gt_extrinsics = sensor.getTrajectory() * trajectoryOffset;
                 Matrix4f gt_pose = gt_extrinsics.inverse();
                 // Estimate the pose of the current frame
-                Matrix4f est;
-                est = optimizer.optimize(pyramid, raycast.m_vertexMapGPU, raycast.m_normalMapGPU, prevFrameToGlobal);
+                Matrix4f estPose;
+                estPose = optimizer.optimize(pyramid, raycast.m_vertexMapGPU, raycast.m_normalMapGPU, prevFrameToGlobal);
                 std::cout << "Ground Truth: " << std::endl
                           << gt_pose << std::endl;
                 std::cout << "Determinant: " << gt_pose.determinant() << std::endl;
                 std::cout << "Estimated: " << std::endl
-                          << est << std::endl;
-                std::cout << "Determinant: " << est.determinant() << std::endl;
+                          << estPose << std::endl;
+                std::cout << "Determinant: " << estPose.determinant() << std::endl;
+                std::cout << "Determinant: " << estPose.determinant() << std::endl;
                 // Use estimated pose as prevPose for next frame
-                prevFrameToGlobal = est;
+                grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
+                prevFrameToGlobal = estPose;
         }
+        run_marching_cubes(grid, idx);
+                
         return 0;
 }
 
 int main()
 {
-        bool icp = false;
+        bool icp = true;
         if (icp)
         {
                 return icp_accuracy_test();
@@ -138,7 +147,7 @@ int main()
                 int numberVoxelsDepth = roomDepthMeter * voxelsPerMeter;
                 float vertex_diff_threshold = 0.3;
                 float normal_diff_threshold = 0.3;
-                std::vector<int> iterations_per_level = {10, 5, 4};
+                std::vector<int> iterations_per_level = {3, 3, 5};
                 ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertex_diff_threshold, normal_diff_threshold, iterations_per_level);
                 Matrix4f prevFrameToGlobal = Matrix4f::Identity();
 
@@ -223,7 +232,7 @@ int main()
                         std::cout << "Computing raycasting took: " << std::chrono::duration_cast<std::chrono::milliseconds>(raycastStop - raycastStart).count() << " ms" << std::endl;
                         auto icpStart = std::chrono::high_resolution_clock::now();
 #endif
-                        //prevFrameToGlobal = optimizer.optimize(pyramid, raycast.m_vertexMapGPU, raycast.m_normalMapGPU, prevFrameToGlobal);
+                        prevFrameToGlobal = optimizer.optimize(pyramid, raycast.m_vertexMapGPU, raycast.m_normalMapGPU, prevFrameToGlobal);
 #if EVAL_MODE
                         auto icpEnd = std::chrono::high_resolution_clock::now();
                         auto frameComputeEnd = std::chrono::high_resolution_clock::now();
