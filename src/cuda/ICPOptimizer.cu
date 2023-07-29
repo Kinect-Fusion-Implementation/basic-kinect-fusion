@@ -1,5 +1,6 @@
 #include "ICPOptimizer.h"
 #include <iostream>
+#include <chrono>
 
 // TODO: Implement PointToPoint ICP with given corresponances
 // TODO: Implement other correspondance search method (No second downsampling)
@@ -55,6 +56,7 @@ __host__ Matrix4f ICPOptimizer::optimize(PointCloudPyramid &currentFramePyramid,
             */
         }
     }
+    // Current Frame -> Global (Pose matrix)
     return prevFrameToGlobal * currentToPreviousFrame;
 }
 
@@ -74,7 +76,7 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
                                                       Eigen::Matrix<float, 6, 6> *matrices, Eigen::Matrix<float, 6, 1> *vectors, float pointToPointWeight, unsigned int level)
 {
     unsigned idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx > width * height)
+    if (idx > (width >> level) * (height >> level))
     {
         printf("returning for: idx= %i\n", idx);
         return;
@@ -111,10 +113,10 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
 
                         if (pointToPointWeight > 0)
                         {
-                            buildPointToPointErrorSystem(idx, vertex, matchedVertex, matchedNormal, matrices, vectors, pointToPointWeight);
+                            buildPointToPointErrorSystem(idx, transformedCurrentVertex, matchedVertex, matchedNormal, matrices, vectors, pointToPointWeight);
                         }
                         // Build summand point to plane matrix and vector for current correspondance
-                        buildPointToPlaneErrorSystem(idx, vertex, matchedVertex, matchedNormal, matrices, vectors, pointToPointWeight);
+                        buildPointToPlaneErrorSystem(idx, transformedCurrentVertex, matchedVertex, matchedNormal, matrices, vectors, pointToPointWeight);
 
                         return;
                     }
@@ -124,6 +126,28 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
     }
     matchedVertexMap[idx] = Vector3f(minf, minf, minf);
     matchedNormalMap[idx] = Vector3f(minf, minf, minf);
+}
+
+__global__ void reduce(Eigen::Matrix<float, 6, 6> *g_idata, Eigen::Matrix<float, 6, 6> *g_odata)
+{
+    extern __shared__ Eigen::Matrix<float, 6, 6> sdata[];
+    // each thread loads one element from global to shared mem
+    unsigned int tid = threadIdx.x;
+    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    sdata[tid] = g_idata[i];
+    __syncthreads();
+    // do reduction in shared mem
+    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1)
+    {
+        if (tid < s)
+        {
+            sdata[tid] += sdata[tid + s];
+        }
+        __syncthreads();
+    }
+    // write result for this block to global mem
+    if (tid == 0)
+        g_odata[blockIdx.x] = sdata[0];
 }
 
 // ---- Correspondance Search ----
@@ -137,8 +161,8 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
                                                         unsigned int level, unsigned int iteration)
 {
     unsigned int numberPoints = (m_width >> level) * (m_height >> level);
-    dim3 threadBlocks(20);
-    dim3 blocks(numberPoints / 20);
+    dim3 threadBlocks(400);
+    dim3 blocks(numberPoints / 400);
     Vector3f *matchedVertexMap;
     Vector3f *matchedNormalMap;
     Eigen::Matrix<float, 6, 6> *matrices;
@@ -147,11 +171,13 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     cudaMalloc(&matchedNormalMap, numberPoints * sizeof(Vector3f));
     cudaMalloc(&matrices, sizeof(Eigen::Matrix<float, 6, 6>) * numberPoints);
     cudaMalloc(&vectors, sizeof(Eigen::Matrix<float, 6, 1>) * numberPoints);
+
     computeCorrespondencesAndSystemKernel<<<blocks, threadBlocks>>>(currentFrameVertices, currentFrameNormals, raycastVertexMap, raycastNormalMap,
                                                                     matchedVertexMap, matchedNormalMap,
                                                                     m_intrinsics, currentFrameToPrevFrameTransformation, prevFrameToGlobalTransform,
                                                                     m_width, m_height, m_vertex_diff_threshold, m_normal_diff_threshold, MINF,
                                                                     matrices, vectors, m_pointToPointWeight, level);
+    // <<<blocks, threadBlocks>>>();
     Eigen::Matrix<float, 6, 6> *matricesCPU = new Eigen::Matrix<float, 6, 6>[numberPoints];
     Eigen::Matrix<float, 6, 1> *vectorsCPU = new Eigen::Matrix<float, 6, 1>[numberPoints];
     Vector3f *matchedVertexMapCPU = new Vector3f[numberPoints];
@@ -161,6 +187,8 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     Eigen::Matrix<float, 6, 6> designMatrix = Eigen::Matrix<float, 6, 6>::Zero();
     Eigen::Matrix<float, 6, 1> designVector = Eigen::Matrix<float, 6, 1>::Zero();
     int matches = 0;
+
+    auto startSum = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < numberPoints; i++)
     {
         // If we got a match, the matched vertex is not a minf vector, and then the corresponding matrix and vector are valid
@@ -171,18 +199,18 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
             matches++;
         }
     }
-    if (matches == 0) {
-        std::cout << "No matches found for level: " << level << " iteration: " << iteration << std::endl; 
-    }
+    auto endSum = std::chrono::high_resolution_clock::now();
+    std::cout << "Summing took: " << std::chrono::duration_cast<std::chrono::milliseconds>(endSum - startSum).count() << " ms" << std::endl;
+
     // solution -> (beta, gamma, alpha, tx, ty, tz)
     Eigen::Matrix<float, 6, 1> solution = designMatrix.llt().solve(designVector);
-    std::cout << "Found " << matches << " matches" << std::endl;
     Matrix4f output;
     output << 1, solution(2), -solution(1), solution(3),
         -solution(2), 1, solution(0), solution(4),
         solution(1), -solution(0), 1, solution(5),
         0, 0, 0, 1;
 
+    /*
     printf("output matrix:\n"
            "%f %f %f %f\n"
            "%f %f %f %f\n"
@@ -195,6 +223,7 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     printf("determinant:\n"
            "%f\n",
            output.determinant());
+    */
     return output;
 }
 
@@ -206,9 +235,9 @@ __device__ void buildPointToPlaneErrorSystem(unsigned int idx, Vector3f &current
     // Returns the solution of the system of equations for point to plane ICP for one summand of the cost function
     // currentVertex -> V_k, TargetVertex -> V_k-1, TargetNormal -> N_k-1
 
-    // solution -> (beta, gamma, alpha, tx, ty, tz)
+    // solution   -> (beta, gamma, alpha, tx, ty, tz)
     // G contains  the skew-symmetric matrix form of the currentVertex | FIXME: Add .cross to calcualte skew-symmetric matrix
-    // For vector (beta, gamma, alpha, tx, ty, tz) the skew-symmetric matrix form is:
+    // For vector -> (beta, gamma, alpha, tx, ty, tz) the skew-symmetric matrix form is:
     Eigen::Matrix<float, 3, 6> G;
     G << 0, -currentVertex(2), currentVertex(1), 1, 0, 0,
         currentVertex(2), 0, -currentVertex(0), 0, 1, 0,
