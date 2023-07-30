@@ -131,7 +131,12 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
     vectors[idx] = Matrix<float, 6, 1>::Zero();
 }
 
-// Compute the tree for every block, then again!
+/**
+ * Reduces an even number of elements (2 * #threads) per block
+ * As every thread requires one shared memory entry, the size of the shared memory has to be equivalent to #threads of a block
+ * Each block with id = i reduces the elements [i * n,..., (i+1) * n - 1]
+ * For every block, one remaining summand is written into the summedConstraint global Device memory
+ */
 __global__ void reduce(Eigen::Matrix<float, 6, 6> *constraints, Eigen::Matrix<float, 6, 6> *summedConstraint)
 {
     extern __shared__ Eigen::Matrix<float, 6, 6> matrices[];
@@ -141,17 +146,27 @@ __global__ void reduce(Eigen::Matrix<float, 6, 6> *constraints, Eigen::Matrix<fl
     matrices[tid] = constraints[i] + constraints[i + blockDim.x];
 
     __syncthreads();
+    // Tracks the number of summands that are remaining to be summed up in total before the reduction of the current loop iteration
+    unsigned int remainingSummands = blockDim.x;
     for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1)
     {
         if (tid < s)
         {
             matrices[tid] += matrices[tid + s];
         }
+        // In case of an uneven number of elements, the last thread also adds up this last element
+        if (tid == s - 1 && remainingSummands % 2 == 1)
+        {
+            matrices[tid] += matrices[tid + s + 1];
+        }
+        remainingSummands = s;
         __syncthreads();
     }
     // write result for this block to global mem
     if (tid == 0)
+    {
         summedConstraint[blockIdx.x] = matrices[0];
+    }
 }
 
 /**
@@ -166,12 +181,20 @@ __global__ void reduce(Eigen::Matrix<float, 6, 1> *constraints, Eigen::Matrix<fl
     vectors[tid] = constraints[i] + constraints[i + blockDim.x];
 
     __syncthreads();
+    // Tracks the number of summands that are remaining to be summed up in total before the reduction of the current loop iteration
+    unsigned int remainingSummands = blockDim.x;
     for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1)
     {
         if (tid < s)
         {
             vectors[tid] += vectors[tid + s];
         }
+        // In case of an uneven number of elements, the last thread also adds up this last element
+        if (tid == s - 1 && remainingSummands % 2 == 1)
+        {
+            vectors[tid] += vectors[tid + s + 1];
+        }
+        remainingSummands = s;
         __syncthreads();
     }
     // write result for this block to global mem
@@ -179,7 +202,6 @@ __global__ void reduce(Eigen::Matrix<float, 6, 1> *constraints, Eigen::Matrix<fl
         summedConstraint[blockIdx.x] = vectors[0];
 }
 
-// ---- Correspondance Search ----
 /**
  * Correspondance Search
  * returns: matched vertices and normals for every point stored on DEVICE
@@ -189,9 +211,62 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
                                                         const Matrix4f &currentFrameToPrevFrameTransformation, const Matrix4f &prevFrameToGlobalTransform,
                                                         unsigned int level, unsigned int iteration)
 {
+    bool test = true;
+    if (test)
+    {
+        // TODO: Only works for powers of two, for others returns the sum only to the next lower power of 2
+        unsigned int elements = 640 * 480;
+        unsigned int numberThreads = 64;
+        unsigned int numberBlocks = elements / (numberThreads * 2);
+        Matrix<float, 6, 6> *matricesCPU = new Matrix<float, 6, 6>[elements];
+        for (size_t i = 0; i < elements; i++)
+        {
+            matricesCPU[i] = Matrix<float, 6, 6>::Identity();
+        }
+        Matrix<float, 6, 6> *matricesGPU;
+        cudaMalloc(&matricesGPU, elements * sizeof(Matrix<float, 6, 6>));
+        cudaMemcpy(matricesGPU, matricesCPU, elements * sizeof(Matrix<float, 6, 6>), cudaMemcpyHostToDevice);
+        Matrix<float, 6, 6> *sumGPU;
+        cudaMalloc(&sumGPU, sizeof(Matrix<float, 6, 6>) * numberBlocks);
+        reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(matricesGPU, sumGPU);
+        std::cout << "Reduced elements to: " << numberBlocks << " elements" << std::endl;
+        // numberBlocks
+        cudaError_t error = cudaDeviceSynchronize();
+        if (error != 0)
+        {
+            std::cout << "Encountered Error Code: " << error << " Description: " << cudaGetErrorString(error) << std::endl;
+        }
+        Matrix<float, 6, 6> *matrixGPU;
+        cudaMalloc(&matrixGPU, sizeof(Matrix<float, 6, 6>));
+        if (numberBlocks < 512)
+        {
+            numberThreads = numberBlocks / 2;
+            std::cout << "Using " << numberThreads << " threads for final compute" << std::endl;
+            reduce<<<1, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(sumGPU, sumGPU);
+        }
+        else
+        {
+            numberThreads = ((numberBlocks / 2) / 30);
+            numberBlocks = 30;
+            reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(sumGPU, sumGPU);
+            numberThreads = numberBlocks / 2;
+            reduce<<<1, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(sumGPU, sumGPU);
+        }
+        Matrix<float, 6, 6> sum;
+        cudaMemcpy(&sum, sumGPU, sizeof(Matrix<float, 6, 6>), cudaMemcpyDeviceToHost);
+        error = cudaDeviceSynchronize();
+        if (error != 0)
+        {
+            std::cout << "Encountered Error Code: " << error << " Description: " << cudaGetErrorString(error) << std::endl;
+        }
+        std::cout << "Test output: " << sum << std::endl;
+        cudaFree(matricesGPU);
+        cudaFree(sumGPU);
+        return Matrix4f::Identity();
+    }
     unsigned int numberPoints = (m_width >> level) * (m_height >> level);
-    dim3 threadBlocks(400);
-    dim3 blocks(numberPoints / 400);
+    dim3 threadBlocks(256);
+    dim3 blocks(numberPoints / 256);
     Vector3f *matchedVertexMap;
     Vector3f *matchedNormalMap;
     Eigen::Matrix<float, 6, 6> *matrices;
@@ -211,32 +286,44 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
 
     Eigen::Matrix<float, 6, 6> *matrixSum;
     Eigen::Matrix<float, 6, 1> *vectorSum;
-    blocks = dim3(numberPoints / 800);
-    // First reduction computes partial sums for every block, 400 elements (block size) at a time
-    cudaMalloc(&matrixSum, (blocks.x) * sizeof(Eigen::Matrix<float, 6, 6>));
-    cudaMalloc(&vectorSum, (blocks.x) * sizeof(Eigen::Matrix<float, 6, 1>));
-    blocks = dim3(numberPoints / 800);
-    // Assert should hold for the image sizes of kinect
-    assert(numberPoints / 800 < 400);
-    if (numberPoints / 800 < 400)
-    {
-        std::cerr << "More than one summand will be left!" << std::endl;
-    }
-    reduce<<<blocks, threadBlocks>>>(matrices, matrixSum);
-    reduce<<<blocks, threadBlocks>>>(vectors, vectorSum);
-    // Do the recusion to reduce it to the one element!
-    // For every Block in the previous reduce call, one summand is created, these have to be summed up now
-    threadBlocks = dim3(blocks.x);
-    blocks = dim3(1);
-    reduce<<<blocks, threadBlocks>>>(matrices, matrixSum);
-    reduce<<<blocks, threadBlocks>>>(vectors, vectorSum);
-    cudaFree(matrices);
-    cudaFree(vectors);
 
-    Eigen::Matrix<float, 6, 6> designMatrix = Eigen::Matrix<float, 6, 6>::Zero();
-    Eigen::Matrix<float, 6, 1> designVector = Eigen::Matrix<float, 6, 1>::Zero();
-    cudaMemcpy(&designMatrix, matrixSum, sizeof(Matrix<float, 6, 6>), cudaMemcpyDeviceToHost);
-    cudaMemcpy(&designVector, matrixSum, sizeof(Matrix<float, 6, 1>), cudaMemcpyDeviceToHost);
+    unsigned int numberThreads = 64;
+    unsigned int numberBlocks = numberPoints / (numberThreads * 2);
+
+    Matrix<float, 6, 6> *sumMatricesGPU;
+    cudaMalloc(&sumMatricesGPU, sizeof(Matrix<float, 6, 6>) * numberBlocks);
+    Matrix<float, 6, 1> *sumVectorsGPU;
+    cudaMalloc(&sumVectorsGPU, sizeof(Matrix<float, 6, 1>) * numberBlocks);
+    reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(matrices, sumMatricesGPU);
+    reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 1>)>>>(vectors, sumVectorsGPU);
+
+    Matrix<float, 6, 6> *matrixGPU;
+    Matrix<float, 6, 6> *vectorGPU;
+    if (numberBlocks < 512)
+    {
+        numberThreads = numberBlocks / 2;
+        reduce<<<1, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(sumMatricesGPU, sumMatricesGPU);
+        reduce<<<1, numberThreads, numberThreads * sizeof(Matrix<float, 6, 1>)>>>(sumVectorsGPU, sumVectorsGPU);
+    }
+    else
+    {
+        numberThreads = ((numberBlocks / 2) / 30);
+        numberBlocks = 30;
+        reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(sumMatricesGPU, sumMatricesGPU);
+        reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 1>)>>>(sumVectorsGPU, sumVectorsGPU);
+        numberThreads = numberBlocks / 2;
+        reduce<<<1, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(sumMatricesGPU, sumMatricesGPU);
+        reduce<<<1, numberThreads, numberThreads * sizeof(Matrix<float, 6, 1>)>>>(sumVectorsGPU, sumVectorsGPU);
+    }
+    Eigen::Matrix<float, 6, 6> designMatrix;
+    Eigen::Matrix<float, 6, 1> designVector;
+    cudaMemcpy(&designMatrix, sumMatricesGPU, sizeof(Matrix<float, 6, 6>), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&designVector, sumVectorsGPU, sizeof(Matrix<float, 6, 1>), cudaMemcpyDeviceToHost);
+    cudaFree(sumMatricesGPU);
+    cudaFree(sumVectorsGPU);
+    
+    std::cout << "Design matrix: " << designMatrix << std::endl;
+    std::cout << "Design vector: " << designVector << std::endl;
 
     // solution -> (beta, gamma, alpha, tx, ty, tz)
     Eigen::Matrix<float, 6, 1> solution = designMatrix.llt().solve(designVector);
@@ -247,21 +334,6 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
         0, 0, 0, 1;
     cudaFree(matrixSum);
     cudaFree(vectorSum);
-
-    /*
-    printf("output matrix:\n"
-           "%f %f %f %f\n"
-           "%f %f %f %f\n"
-           "%f %f %f %f\n"
-           "%f %f %f %f\n",
-           output(0, 0), output(0, 1), output(0, 2), output(0, 3),
-           output(1, 0), output(1, 1), output(1, 2), output(1, 3),
-           output(2, 0), output(2, 1), output(2, 2), output(2, 3),
-           output(3, 0), output(3, 1), output(3, 2), output(3, 3));
-    printf("determinant:\n"
-           "%f\n",
-           output.determinant());
-    */
     return output;
 }
 
