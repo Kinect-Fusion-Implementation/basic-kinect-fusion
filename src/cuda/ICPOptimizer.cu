@@ -266,9 +266,6 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     cudaFree(sumMatricesGPU);
     cudaFree(sumVectorsGPU);
 
-    std::cout << "Design matrix: " << designMatrix << std::endl;
-    std::cout << "Design vector: " << designVector << std::endl;
-
     // solution -> (beta, gamma, alpha, tx, ty, tz)
     Eigen::Matrix<float, 6, 1> solution = designMatrix.llt().solve(designVector);
     Matrix4f output;
