@@ -35,7 +35,6 @@ __host__ Matrix4f ICPOptimizer::optimize(PointCloudPyramid &currentFramePyramid,
     {
         for (unsigned int iteration = 0; iteration < m_iterations_per_level[level]; iteration++)
         {
-            // TODO: Should this be always pointcloud 0 or point cloud level?
             Matrix4f inc = pointToPointAndPlaneICP(currentFramePyramid.getPointClouds().at(level).getPoints(), currentFramePyramid.getPointClouds().at(level).getNormals(),
                                                    raycastVertexMap, raycastNormalMap, currentToPreviousFrame, prevFrameToGlobal, level, iteration);
             /*
@@ -107,9 +106,10 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
                     Matrix3f rotation = (currentFrameToPrevFrameTransformation).block<3, 3>(0, 0);
                     if ((1 - matchedVertex.dot(rotation * normal)) < normal_diff_threshold)
                     {
-                        // We found a match!
-                        matchedVertexMap[idx] = matchedVertex;
-                        matchedNormalMap[idx] = matchedNormal;
+                        // We found a match! Transform both correspondence vertices to global frame
+                        matchedVertexMap[idx] = prevFrameToGlobalTransform.block<3,3>(0,0) * matchedVertex + prevFrameToGlobalTransform.block<3,1>(0,3);
+                        matchedNormalMap[idx] = prevFrameToGlobalTransform.block<3,3>(0,0) * matchedNormal;
+                        transformedCurrentVertex = prevFrameToGlobalTransform.block<3,3>(0,0) * transformedCurrentVertex + prevFrameToGlobalTransform.block<3,1>(0,3);
 
                         if (pointToPointWeight > 0)
                         {

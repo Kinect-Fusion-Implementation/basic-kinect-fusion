@@ -43,9 +43,9 @@ int icp_accuracy_test()
         // x,y,z: width, height, depth
         VoxelGrid grid(Vector3f(-2.0, -1.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
 
-        float vertex_diff_threshold = 0.3;
-        float normal_diff_threshold = 0.3;
-        std::vector<int> iterations_per_level = {4, 4, 4};
+        float vertex_diff_threshold = 0.1;
+        float normal_diff_threshold = 0.2;
+        std::vector<int> iterations_per_level = {10, 5, 4};
         ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertex_diff_threshold, normal_diff_threshold, iterations_per_level);
         
         Matrix4f prevFrameToGlobal = Matrix4f::Identity();
