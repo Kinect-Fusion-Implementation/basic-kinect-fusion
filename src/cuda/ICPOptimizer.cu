@@ -231,9 +231,6 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     cudaFree(matchedVertexMap);
     cudaFree(matchedNormalMap);
 
-    Eigen::Matrix<float, 6, 6> *matrixSum;
-    Eigen::Matrix<float, 6, 1> *vectorSum;
-
     unsigned int numberThreads = 64;
     unsigned int numberBlocks = numberPoints / (numberThreads * 2);
 
@@ -243,9 +240,9 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     cudaMalloc(&sumVectorsGPU, sizeof(Matrix<float, 6, 1>) * numberBlocks);
     reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(matrices, sumMatricesGPU);
     reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 1>)>>>(vectors, sumVectorsGPU);
-
-    Matrix<float, 6, 6> *matrixGPU;
-    Matrix<float, 6, 6> *vectorGPU;
+    cudaFree(matrices);
+    cudaFree(vectors);
+    
     if (numberBlocks < 512)
     {
         numberThreads = numberBlocks / 2;
@@ -279,8 +276,6 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
         -solution(2), 1, solution(0), solution(4),
         solution(1), -solution(0), 1, solution(5),
         0, 0, 0, 1;
-    cudaFree(matrixSum);
-    cudaFree(vectorSum);
     return output;
 }
 
