@@ -43,10 +43,10 @@ int icp_accuracy_test()
         // x,y,z: width, height, depth
         VoxelGrid grid(Vector3f(-2.0, -1.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
 
-        float vertex_diff_threshold = 0.05;
-        float normal_diff_threshold = 0.05;
-        std::vector<int> iterations_per_level = {10, 5, 4};
-        ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertex_diff_threshold, normal_diff_threshold, iterations_per_level, 0.4f);
+        float vertex_diff_threshold = 0.002;
+        float normal_diff_threshold = 0.002;
+        std::vector<int> iterations_per_level = {10, 10, 10};
+        ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertex_diff_threshold, normal_diff_threshold, iterations_per_level, 0.5f);
         
         Matrix4f prevFrameToGlobal = Matrix4f::Identity();
         int idx = 0;
@@ -97,10 +97,11 @@ int icp_accuracy_test()
                 estPose = optimizer.optimize(pyramid, raycast.m_vertexMapGPU, raycast.m_normalMapGPU, prevFrameToGlobal);
                 std::cout << "Ground Truth: " << std::endl
                           << gt_pose << std::endl;
-                std::cout << "Determinant: " << gt_pose.determinant() << std::endl;
+                //std::cout << "Determinant: " << gt_pose.determinant() << std::endl;
                 std::cout << "Estimated: " << std::endl
                           << estPose << std::endl;
-                std::cout << "Determinant: " << estPose.determinant() << std::endl;
+                std::cout << "Determinant estimate: " << estPose.determinant() << std::endl;
+                std::cout << "Norm: " << (estPose-gt_pose).norm() << std::endl;
                 // Use estimated pose as prevPose for next frame
                 prevFrameToGlobal = estPose;
                 //grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());

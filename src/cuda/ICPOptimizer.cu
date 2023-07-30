@@ -31,6 +31,7 @@ __host__ Matrix4f ICPOptimizer::optimize(PointCloudPyramid &currentFramePyramid,
 {
     // Initialize frame transformation with identity matrix
     Matrix4f currentToPreviousFrame = Matrix4f::Identity();
+    Matrix4f currentToGlobalFrame = prevFrameToGlobal;
     // Iterate over levels for pointClouds the higher the level, the smaller the resolution (level 0 contains original resolution)
     for (int level = currentFramePyramid.getPointClouds().size() - 1; level >= 0; level--)
     {
@@ -47,7 +48,9 @@ __host__ Matrix4f ICPOptimizer::optimize(PointCloudPyramid &currentFramePyramid,
             std::cout << "Incremental Matrix norm: " << std::endl
                       << inc.norm() << std::endl;
             */
-            currentToPreviousFrame = inc * currentToPreviousFrame;
+            //currentToPreviousFrame = inc * currentToPreviousFrame;
+            currentToGlobalFrame = inc * currentToGlobalFrame;
+            currentToPreviousFrame = prevFrameToGlobal.inverse() * currentToGlobalFrame;
             /*
             std::cout << "Current to Previous Frame det:" << std::endl
                       << currentToPreviousFrame.determinant() << std::endl;
@@ -57,7 +60,7 @@ __host__ Matrix4f ICPOptimizer::optimize(PointCloudPyramid &currentFramePyramid,
         }
     }
     // Current Frame -> Global (Pose matrix)
-    return prevFrameToGlobal * currentToPreviousFrame;
+    return currentToGlobalFrame;
 }
 
 __device__ bool isFinite(Vector3f vector)
@@ -274,13 +277,13 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     Eigen::Matrix<float, 6, 1> solution = svd.solve(designVector);
 
     Matrix4f output;
-    float beta = solution(0);
-    float gamma = solution(1);
-    float alpha = solution(2);
+    float alpha = -solution(0);
+    float beta = -solution(1);
+    float gamma = -solution(2);
     // gamma = -beta (their), beta = -alpha, alpha = -gamma
-    output << 1, beta*gamma+alpha, beta*alpha-gamma, 0,
-        -alpha, -alpha*beta*gamma + 1, gamma*alpha+beta, 0,
-        gamma, -beta, 1, 0,
+    output << 1, alpha * beta-gamma, alpha*gamma+beta, solution(3),
+        gamma, alpha*beta*gamma + 1, beta * gamma - alpha, solution(4),
+        -beta, alpha, 1, solution(5),
         0, 0, 0, 1;
     return output;
 }
