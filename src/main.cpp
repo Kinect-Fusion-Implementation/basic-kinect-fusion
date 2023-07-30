@@ -124,7 +124,10 @@ int main()
                 int result = 0;
 
                 VirtualSensor sensor;
-                sensor.init(Configuration::getDataSetPath());
+                if (!sensor.init(Configuration::getDataSetPath())) {
+                        std::cerr << "Failed to initialize sensor data!" << std::endl;
+                        return 0;
+                }
                 float sigmaS(2.0);
                 float sigmaR(2.0);
                 std::cout << "Using sigmaS: " << sigmaS << std::endl;
@@ -137,9 +140,9 @@ int main()
                 // Size of subsampling window
                 const unsigned blockSize = 3;
 
-                int roomWidthMeter = 6;
-                int roomHeightMeter = 6;
-                int roomDepthMeter = 6;
+                int roomWidthMeter = 8;
+                int roomHeightMeter = 8;
+                int roomDepthMeter = 8;
                 float voxelsPerMeter = 100;
                 float scale = 1 / voxelsPerMeter;
                 float truncation = 0.125f;
@@ -156,7 +159,7 @@ int main()
                 auto gridGenStart = std::chrono::high_resolution_clock::now();
 #endif
                 // x,y,z: width, height, depth
-                VoxelGrid grid(Vector3f(-2.0, -1.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
+                VoxelGrid grid(Vector3f(-4.0, -4.0, -4.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
 #if EVAL_MODE
                 auto gridGenEnd = std::chrono::high_resolution_clock::now();
                 std::cout << "Setting up grid took: " << std::chrono::duration_cast<std::chrono::milliseconds>(gridGenEnd - gridGenStart).count() << " ms" << std::endl;

@@ -27,17 +27,25 @@ public:
 		m_baseDir = datasetDir;
 
 		// Read filename lists
-		if (!readFileList(datasetDir + "depth.txt", m_filenameDepthImages, m_depthImagesTimeStamps))
+		if (!readFileList(datasetDir + "depth.txt", m_filenameDepthImages, m_depthImagesTimeStamps)){
+			std::cerr << "depth txt missing" << std::endl;
 			return false;
-		if (!readFileList(datasetDir + "rgb.txt", m_filenameColorImages, m_colorImagesTimeStamps))
+		}
+		if (!readFileList(datasetDir + "rgb.txt", m_filenameColorImages, m_colorImagesTimeStamps)){
+			std::cerr << "rgb txt missing" << std::endl;
 			return false;
-
+		}
 		// Read tracking
 		if (!readTrajectoryFile(datasetDir + "groundtruth.txt", m_trajectory, m_trajectoryTimeStamps))
+		{
+			std::cerr << "Failed reading trajectory file" << std::endl;
 			return false;
-
+		}
 		if (m_filenameDepthImages.size() != m_filenameColorImages.size())
+		{
+			std::cerr << "Depth and color image wrong size" << std::endl;
 			return false;
+		}
 
 		// Image resolutions
 		m_colorImageWidth = 640;
