@@ -45,7 +45,7 @@ int icp_accuracy_test()
 
         float vertex_diff_threshold = 0.1;
         float normal_diff_threshold = 0.2;
-        std::vector<int> iterations_per_level = {10, 5, 4};
+        std::vector<int> iterations_per_level = {4, 5, 10};
         ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertex_diff_threshold, normal_diff_threshold, iterations_per_level);
         
         Matrix4f prevFrameToGlobal = Matrix4f::Identity();
