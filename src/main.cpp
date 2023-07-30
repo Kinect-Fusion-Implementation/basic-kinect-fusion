@@ -100,7 +100,6 @@ int icp_accuracy_test()
                 std::cout << "Estimated: " << std::endl
                           << estPose << std::endl;
                 std::cout << "Determinant: " << estPose.determinant() << std::endl;
-                std::cout << "Determinant: " << estPose.determinant() << std::endl;
                 // Use estimated pose as prevPose for next frame
                 grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
                 prevFrameToGlobal = estPose;
