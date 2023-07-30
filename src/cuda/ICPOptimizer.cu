@@ -211,59 +211,6 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
                                                         const Matrix4f &currentFrameToPrevFrameTransformation, const Matrix4f &prevFrameToGlobalTransform,
                                                         unsigned int level, unsigned int iteration)
 {
-    bool test = true;
-    if (test)
-    {
-        // TODO: Only works for powers of two, for others returns the sum only to the next lower power of 2
-        unsigned int elements = 640 * 480;
-        unsigned int numberThreads = 64;
-        unsigned int numberBlocks = elements / (numberThreads * 2);
-        Matrix<float, 6, 6> *matricesCPU = new Matrix<float, 6, 6>[elements];
-        for (size_t i = 0; i < elements; i++)
-        {
-            matricesCPU[i] = Matrix<float, 6, 6>::Identity();
-        }
-        Matrix<float, 6, 6> *matricesGPU;
-        cudaMalloc(&matricesGPU, elements * sizeof(Matrix<float, 6, 6>));
-        cudaMemcpy(matricesGPU, matricesCPU, elements * sizeof(Matrix<float, 6, 6>), cudaMemcpyHostToDevice);
-        Matrix<float, 6, 6> *sumGPU;
-        cudaMalloc(&sumGPU, sizeof(Matrix<float, 6, 6>) * numberBlocks);
-        reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(matricesGPU, sumGPU);
-        std::cout << "Reduced elements to: " << numberBlocks << " elements" << std::endl;
-        // numberBlocks
-        cudaError_t error = cudaDeviceSynchronize();
-        if (error != 0)
-        {
-            std::cout << "Encountered Error Code: " << error << " Description: " << cudaGetErrorString(error) << std::endl;
-        }
-        Matrix<float, 6, 6> *matrixGPU;
-        cudaMalloc(&matrixGPU, sizeof(Matrix<float, 6, 6>));
-        if (numberBlocks < 512)
-        {
-            numberThreads = numberBlocks / 2;
-            std::cout << "Using " << numberThreads << " threads for final compute" << std::endl;
-            reduce<<<1, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(sumGPU, sumGPU);
-        }
-        else
-        {
-            numberThreads = ((numberBlocks / 2) / 30);
-            numberBlocks = 30;
-            reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(sumGPU, sumGPU);
-            numberThreads = numberBlocks / 2;
-            reduce<<<1, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(sumGPU, sumGPU);
-        }
-        Matrix<float, 6, 6> sum;
-        cudaMemcpy(&sum, sumGPU, sizeof(Matrix<float, 6, 6>), cudaMemcpyDeviceToHost);
-        error = cudaDeviceSynchronize();
-        if (error != 0)
-        {
-            std::cout << "Encountered Error Code: " << error << " Description: " << cudaGetErrorString(error) << std::endl;
-        }
-        std::cout << "Test output: " << sum << std::endl;
-        cudaFree(matricesGPU);
-        cudaFree(sumGPU);
-        return Matrix4f::Identity();
-    }
     unsigned int numberPoints = (m_width >> level) * (m_height >> level);
     dim3 threadBlocks(256);
     dim3 blocks(numberPoints / 256);
@@ -321,7 +268,7 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     cudaMemcpy(&designVector, sumVectorsGPU, sizeof(Matrix<float, 6, 1>), cudaMemcpyDeviceToHost);
     cudaFree(sumMatricesGPU);
     cudaFree(sumVectorsGPU);
-    
+
     std::cout << "Design matrix: " << designMatrix << std::endl;
     std::cout << "Design vector: " << designVector << std::endl;
 
