@@ -43,10 +43,10 @@ int icp_accuracy_test()
         // x,y,z: width, height, depth
         VoxelGrid grid(Vector3f(-2.0, -1.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
 
-        float vertex_diff_threshold = 0.1;
-        float normal_diff_threshold = 0.2;
+        float vertex_diff_threshold = 0.05;
+        float normal_diff_threshold = 0.05;
         std::vector<int> iterations_per_level = {10, 5, 4};
-        ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertex_diff_threshold, normal_diff_threshold, iterations_per_level);
+        ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertex_diff_threshold, normal_diff_threshold, iterations_per_level, 0.4f);
         
         Matrix4f prevFrameToGlobal = Matrix4f::Identity();
         int idx = 0;
@@ -83,7 +83,8 @@ int icp_accuracy_test()
                         }
                 }
 
-                RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
+                //RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
+                RaycastImage raycast = grid.raycastVoxelGrid(prevFrameToGlobal.inverse(), sensor.getDepthIntrinsics());
                 if (idx % 100 == 0)
                 {
                         ImageUtil::saveNormalMapToImage((float *)raycast.m_normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("RaycastedImage_") + std::to_string(idx), "");
@@ -101,8 +102,9 @@ int icp_accuracy_test()
                           << estPose << std::endl;
                 std::cout << "Determinant: " << estPose.determinant() << std::endl;
                 // Use estimated pose as prevPose for next frame
-                grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
                 prevFrameToGlobal = estPose;
+                //grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
+                grid.updateTSDF(estPose.inverse(), sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
         }
         run_marching_cubes(grid, idx);
                 

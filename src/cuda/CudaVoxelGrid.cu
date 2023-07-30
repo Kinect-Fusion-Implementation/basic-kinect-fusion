@@ -126,6 +126,7 @@ __host__ void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, fl
 	cudaFree(depthDataGPU);
 }
 
+// Computes the pointcloud in world coordinates
 __global__ void raycastVoxelGridKernel(Matrix4f poseMatrix, Matrix4f extrinsics, Matrix3f intrinsics, Vector3f *vertexMap, Vector3f *normalMap,
 									   Vector3f gridOffset, float spatialVoxelScale,
 									   VoxelData *tsdf, unsigned int numberVoxelsDepth, unsigned int numberVoxelsWidth, unsigned int numberVoxelsHeight,

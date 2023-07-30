@@ -12,6 +12,7 @@ __host__ ICPOptimizer::ICPOptimizer(Matrix3f intrinsics, unsigned int width, uns
     m_intrinsics = intrinsics;
     m_width = width;
     m_height = height;
+    m_pointToPointWeight = pointToPointWeight;
 
     // Sets threshold values for vertex and normal difference in correspondance search
     m_vertex_diff_threshold = vertex_diff_threshold;
@@ -96,20 +97,22 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
         if (0 <= normalizedSceenSpaceCoordinates.x() && int(normalizedSceenSpaceCoordinates.x()) < width && 0 <= normalizedSceenSpaceCoordinates.y() && int(normalizedSceenSpaceCoordinates.y()) < height)
         {
             unsigned int pixelCoordinates = int(normalizedSceenSpaceCoordinates.x()) + int(normalizedSceenSpaceCoordinates.y()) * width;
+            // Lookup global coordinates
             Vector3f matchedVertex = raycastVertexMap[pixelCoordinates];
             Vector3f matchedNormal = raycastNormalMap[pixelCoordinates];
 
             if (isFinite(matchedVertex) && isFinite(matchedNormal))
             {
+                // Bring transformedCurrentVertex into global frame
+                transformedCurrentVertex = prevFrameToGlobalTransform.block<3, 3>(0, 0) * transformedCurrentVertex + prevFrameToGlobalTransform.block<3, 1>(0, 3);
                 if ((transformedCurrentVertex - matchedVertex).norm() < vertex_diff_threshold)
                 {
-                    Matrix3f rotation = (currentFrameToPrevFrameTransformation).block<3, 3>(0, 0);
-                    if ((1 - matchedVertex.dot(rotation * normal)) < normal_diff_threshold)
+                    Matrix3f rotation = prevFrameToGlobalTransform.block<3, 3>(0, 0) * (currentFrameToPrevFrameTransformation).block<3, 3>(0, 0);
+                    if ((1 - matchedNormal.dot(rotation * normal)) < normal_diff_threshold)
                     {
                         // We found a match! Transform both correspondence vertices to global frame
-                        matchedVertexMap[idx] = prevFrameToGlobalTransform.block<3,3>(0,0) * matchedVertex + prevFrameToGlobalTransform.block<3,1>(0,3);
-                        matchedNormalMap[idx] = prevFrameToGlobalTransform.block<3,3>(0,0) * matchedNormal;
-                        transformedCurrentVertex = prevFrameToGlobalTransform.block<3,3>(0,0) * transformedCurrentVertex + prevFrameToGlobalTransform.block<3,1>(0,3);
+                        matchedVertexMap[idx] = matchedVertex;
+                        matchedNormalMap[idx] = matchedNormal;
 
                         if (pointToPointWeight > 0)
                         {
@@ -242,7 +245,7 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 1>)>>>(vectors, sumVectorsGPU);
     cudaFree(matrices);
     cudaFree(vectors);
-    
+
     if (numberBlocks < 512)
     {
         numberThreads = numberBlocks / 2;
@@ -267,11 +270,17 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     cudaFree(sumVectorsGPU);
 
     // solution -> (beta, gamma, alpha, tx, ty, tz)
-    Eigen::Matrix<float, 6, 1> solution = designMatrix.llt().solve(designVector);
+    BDCSVD<MatrixXf> svd = BDCSVD<MatrixXf>(designMatrix, ComputeThinU | ComputeThinV);
+    Eigen::Matrix<float, 6, 1> solution = svd.solve(designVector);
+
     Matrix4f output;
-    output << 1, solution(2), -solution(1), solution(3),
-        -solution(2), 1, solution(0), solution(4),
-        solution(1), -solution(0), 1, solution(5),
+    float beta = solution(0);
+    float gamma = solution(1);
+    float alpha = solution(2);
+    // gamma = -beta (their), beta = -alpha, alpha = -gamma
+    output << 1, beta*gamma+alpha, beta*alpha-gamma, 0,
+        -alpha, -alpha*beta*gamma + 1, gamma*alpha+beta, 0,
+        gamma, -beta, 1, 0,
         0, 0, 0, 1;
     return output;
 }
