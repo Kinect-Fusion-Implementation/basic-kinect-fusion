@@ -39,24 +39,8 @@ __host__ Matrix4f ICPOptimizer::optimize(PointCloudPyramid &currentFramePyramid,
         {
             Matrix4f inc = pointToPointAndPlaneICP(currentFramePyramid.getPointClouds().at(level).getPoints(), currentFramePyramid.getPointClouds().at(level).getNormals(),
                                                    raycastVertexMap, raycastNormalMap, currentToPreviousFrame, prevFrameToGlobal, level, iteration);
-            /*
-            // TODO: Check if enough correspondances were
-            std::cout << "Incremental Matrix: " << std::endl
-                      << inc << std::endl;
-            std::cout << "Incremental Matrix det: " << std::endl
-                      << inc.determinant() << std::endl;
-            std::cout << "Incremental Matrix norm: " << std::endl
-                      << inc.norm() << std::endl;
-            */
-            //currentToPreviousFrame = inc * currentToPreviousFrame;
             currentToGlobalFrame = inc * currentToGlobalFrame;
             currentToPreviousFrame = prevFrameToGlobal.inverse() * currentToGlobalFrame;
-            /*
-            std::cout << "Current to Previous Frame det:" << std::endl
-                      << currentToPreviousFrame.determinant() << std::endl;
-            std::cout << "Current to Previous Frame: " << std::endl
-                      << currentToPreviousFrame << std::endl;
-            */
         }
     }
     // Current Frame -> Global (Pose matrix)
@@ -217,6 +201,78 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
                                                         const Matrix4f &currentFrameToPrevFrameTransformation, const Matrix4f &prevFrameToGlobalTransform,
                                                         unsigned int level, unsigned int iteration)
 {
+    bool test = false;
+    if (test)
+    {
+        for (size_t testLevel = 0; testLevel < 3; testLevel++)
+        {
+            std::cout << "Run test" << std::endl;
+            unsigned int numberPoints = (m_width >> testLevel) * (m_height >> testLevel);
+            dim3 threadBlocks(256);
+            dim3 blocks(numberPoints / 256);
+            Vector3f *matchedVertexMap;
+            Vector3f *matchedNormalMap;
+            Eigen::Matrix<float, 6, 6> *matrices;
+            Eigen::Matrix<float, 6, 1> *vectors;
+            cudaMalloc(&matchedVertexMap, numberPoints * sizeof(Vector3f));
+            cudaMalloc(&matchedNormalMap, numberPoints * sizeof(Vector3f));
+            cudaMalloc(&matrices, sizeof(Eigen::Matrix<float, 6, 6>) * numberPoints);
+            cudaMalloc(&vectors, sizeof(Eigen::Matrix<float, 6, 1>) * numberPoints);
+            Eigen::Matrix<float, 6, 6> *testMatrices = new Matrix<float, 6, 6>[numberPoints];
+            Eigen::Matrix<float, 6, 1> *testVectors = new Matrix<float, 6, 1>[numberPoints];
+            for (size_t i = 0; i < numberPoints; i++)
+            {
+                testMatrices[i] = Matrix<float, 6, 6>::Identity();
+                testVectors[i] = Matrix<float, 6, 1>::Ones();
+            }
+            // Fill matrices with test data
+            cudaMemcpy(matrices, testMatrices, sizeof(Eigen::Matrix<float, 6, 6>) * numberPoints, cudaMemcpyHostToDevice);
+            cudaMemcpy(vectors, testVectors, sizeof(Eigen::Matrix<float, 6, 1>) * numberPoints,cudaMemcpyHostToDevice);
+
+            cudaFree(matchedVertexMap);
+            cudaFree(matchedNormalMap);
+
+            unsigned int numberThreads = 64;
+            unsigned int numberBlocks = numberPoints / (numberThreads * 2);
+
+            Matrix<float, 6, 6> *sumMatricesGPU;
+            cudaMalloc(&sumMatricesGPU, sizeof(Matrix<float, 6, 6>) * numberBlocks);
+            Matrix<float, 6, 1> *sumVectorsGPU;
+            cudaMalloc(&sumVectorsGPU, sizeof(Matrix<float, 6, 1>) * numberBlocks);
+            reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(matrices, sumMatricesGPU);
+            reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 1>)>>>(vectors, sumVectorsGPU);
+            cudaFree(matrices);
+            cudaFree(vectors);
+
+            if (numberBlocks < 512)
+            {
+                numberThreads = numberBlocks / 2;
+                reduce<<<1, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(sumMatricesGPU, sumMatricesGPU);
+                reduce<<<1, numberThreads, numberThreads * sizeof(Matrix<float, 6, 1>)>>>(sumVectorsGPU, sumVectorsGPU);
+            }
+            else
+            {
+                numberThreads = ((numberBlocks / 2) / 30);
+                numberBlocks = 30;
+                reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(sumMatricesGPU, sumMatricesGPU);
+                reduce<<<numberBlocks, numberThreads, numberThreads * sizeof(Matrix<float, 6, 1>)>>>(sumVectorsGPU, sumVectorsGPU);
+                numberThreads = numberBlocks / 2;
+                reduce<<<1, numberThreads, numberThreads * sizeof(Matrix<float, 6, 6>)>>>(sumMatricesGPU, sumMatricesGPU);
+                reduce<<<1, numberThreads, numberThreads * sizeof(Matrix<float, 6, 1>)>>>(sumVectorsGPU, sumVectorsGPU);
+            }
+            Eigen::Matrix<float, 6, 6> designMatrix;
+            Eigen::Matrix<float, 6, 1> designVector;
+            cudaMemcpy(&designMatrix, sumMatricesGPU, sizeof(Matrix<float, 6, 6>), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&designVector, sumVectorsGPU, sizeof(Matrix<float, 6, 1>), cudaMemcpyDeviceToHost);
+            cudaFree(sumMatricesGPU);
+            cudaFree(sumVectorsGPU);
+            std::cout << "Test matrix for level " << testLevel << ": " << designMatrix << std::endl;
+            std::cout << "Test vector for level " << testLevel << ": " << designVector << std::endl;
+        }
+
+        return Matrix4f::Identity();
+    }
+    auto computeCorrespondenceAndSystemstart = std::chrono::high_resolution_clock::now();
     unsigned int numberPoints = (m_width >> level) * (m_height >> level);
     dim3 threadBlocks(256);
     dim3 blocks(numberPoints / 256);
@@ -234,6 +290,9 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
                                                                     m_intrinsics, currentFrameToPrevFrameTransformation, prevFrameToGlobalTransform,
                                                                     m_width, m_height, m_vertex_diff_threshold, m_normal_diff_threshold, MINF,
                                                                     matrices, vectors, m_pointToPointWeight, level);
+    auto computeCorrespondenceAndSystemEnd = std::chrono::high_resolution_clock::now();
+    std::cout << "Computing correspondence and system took: " << std::chrono::duration_cast<std::chrono::milliseconds>(computeCorrespondenceAndSystemEnd - computeCorrespondenceAndSystemstart).count() << " ms" << std::endl;
+    auto sumAndSolveStart = std::chrono::high_resolution_clock::now();
     cudaFree(matchedVertexMap);
     cudaFree(matchedNormalMap);
 
@@ -275,14 +334,16 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     // solution -> (beta, gamma, alpha, tx, ty, tz)
     BDCSVD<MatrixXf> svd = BDCSVD<MatrixXf>(designMatrix, ComputeThinU | ComputeThinV);
     Eigen::Matrix<float, 6, 1> solution = svd.solve(designVector);
+    auto sumAndSolveEnd = std::chrono::high_resolution_clock::now();
+    std::cout << "Summing systems and solving it took: " << std::chrono::duration_cast<std::chrono::milliseconds>(sumAndSolveEnd - sumAndSolveStart).count() << " ms" << std::endl;
 
     Matrix4f output;
     float alpha = -solution(0);
     float beta = -solution(1);
     float gamma = -solution(2);
     // gamma = -beta (their), beta = -alpha, alpha = -gamma
-    output << 1, alpha * beta-gamma, alpha*gamma+beta, solution(3),
-        gamma, alpha*beta*gamma + 1, beta * gamma - alpha, solution(4),
+    output << 1, alpha * beta - gamma, alpha * gamma + beta, solution(3),
+        gamma, alpha * beta * gamma + 1, beta * gamma - alpha, solution(4),
         -beta, alpha, 1, solution(5),
         0, 0, 0, 1;
     return output;
