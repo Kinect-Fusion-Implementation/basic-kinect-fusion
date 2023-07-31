@@ -68,8 +68,10 @@ Matrix4f prevFrameToGlobal = Matrix4f::Identity();
 
 unsigned int idx = 0;
 
-int run_kinect_fusion(float vertexDiffThreshold, float normalDiffThreshold, float *depth, uint8_t *image)
+int run_kinect_fusion(float vertexDiffThreshold, float normalDiffThreshold, float *depthIn, uint8_t *image)
 {
+        float* depth = new float[640*480];
+        memcpy(depth, depthIn, 640*480 * sizeof(float)); 
         Matrix3f intrinsics;
         intrinsics << 525.0f, 0.0f, 319.5f,
             0.0f, 525.0f, 239.5f,
@@ -108,6 +110,7 @@ int run_kinect_fusion(float vertexDiffThreshold, float normalDiffThreshold, floa
         prevFrameToGlobal = estPose;
 
         grid.updateTSDF(estPose.inverse(), intrinsics, depth, 640, 480);
+        std::cout << "Finish kinect" << std::endl;
         return 0;
 }
 
@@ -136,7 +139,6 @@ void DrawGLScene()
                 depth_front = depth_mid;
                 depth_mid = tmp_depth;
                 got_depth = false;
-                run_kinect_fusion(pointThreshold, normalThreshold, depth_front, depth_img_front);
                 tmp = depth_img_front;
                 depth_img_front = depth_img_mid;
                 depth_img_mid = tmp;
@@ -265,12 +267,20 @@ void callback_depth(freenect_device *dev, void *v_depth, uint32_t timestamp)
 
         pthread_mutex_lock(&buffer_mutex);
 
-#pragma omp parallel for
+        unsigned int sum = 0;
         for (int i = 0; i < 640 * 480; i++)
         {
                 depth_mid[i] = depth[i] / 1000.0;
+                sum += depth[i];
                 // std::cout << depth_mid[i];
         }
+        if(sum == 0) {
+                std::cout << "received empty frame" << std::endl;
+                pthread_mutex_unlock(&buffer_mutex);
+                return;
+        }
+        ImageUtil::saveDepthMapToImage(depth_mid, 640, 480, "test", "");
+        run_kinect_fusion(pointThreshold, normalThreshold, depth_mid, depth_img_mid);
         got_depth = true;
         pthread_cond_signal(&gl_frame_cond);
         pthread_mutex_unlock(&buffer_mutex);

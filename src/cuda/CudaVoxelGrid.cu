@@ -123,6 +123,7 @@ __host__ void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, fl
 	cudaMemcpy(depthDataGPU, depthMap, sizeof(float) * depthMapWidth * depthMapHeight, cudaMemcpyHostToDevice);
 	updateTSDFKernel<<<blocks, threadBlocks>>>(extrinsics, intrinsics, depthDataGPU, depthMapWidth, depthMapHeight, m_truncation, m_gridOriginOffset.x(), m_gridOriginOffset.y(), m_gridOriginOffset.z(), m_spatialVoxelScale, m_voxelGrid, m_numberVoxelsDepth, m_numberVoxelsHeight);
 	cudaFree(depthDataGPU);
+	cudaDeviceSynchronize();
 }
 
 // Computes the pointcloud in world coordinates
