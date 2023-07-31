@@ -12,7 +12,7 @@
 #include "../visualization/MarchingCubes.h"
 #include "./visualization/PointCloudToMesh.h"
 
-int icp_accuracy_test()
+int run_with_icp(float vertexDiffThreshold, float normalDiffThreshold)
 {
         int result = 0;
 
@@ -43,11 +43,8 @@ int icp_accuracy_test()
         // x,y,z: width, height, depth
         VoxelGrid grid(Vector3f(-2.0, -1.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
 
-        float vertex_diff_threshold = 0.02;
-        // Approx 35 degrees
-        float normal_diff_threshold = 0.02;
         std::vector<int> iterations_per_level = {10, 5, 3};
-        ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertex_diff_threshold, normal_diff_threshold, iterations_per_level, 0.2f);
+        ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertexDiffThreshold, normalDiffThreshold, iterations_per_level, 0.2f);
 
         Matrix4f prevFrameToGlobal = Matrix4f::Identity();
         int idx = 0;
@@ -97,9 +94,10 @@ int icp_accuracy_test()
                 std::cout << "Norm: " << (estPose - gt_pose).norm() << std::endl;
                 
                 // Use estimated pose as prevPose for next frame
-                prevFrameToGlobal = gt_pose;
-                grid.updateTSDF(gt_extrinsics, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
-                //grid.updateTSDF(estPose.inverse(), sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
+                //prevFrameToGlobal = gt_pose;
+                prevFrameToGlobal = estPose;
+                //grid.updateTSDF(gt_extrinsics, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
+                grid.updateTSDF(estPose.inverse(), sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
                 idx++;
         }
         run_marching_cubes(grid, idx);
@@ -112,7 +110,10 @@ int main()
         bool icp = true;
         if (icp)
         {
-                return icp_accuracy_test();
+                float vertexDiffThreshold = 0.02;
+                // Approx 35 degrees
+                float normalDiffThreshold = 0.02;
+                return run_with_icp(vertexDiffThreshold, normalDiffThreshold);
         }
         else
         {

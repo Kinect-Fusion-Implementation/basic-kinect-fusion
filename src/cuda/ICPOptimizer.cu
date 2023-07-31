@@ -84,10 +84,6 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
         // Check if transformedCurrentVertex is in the image
         if (0 <= normalizedSceenSpaceCoordinates.x() && int(normalizedSceenSpaceCoordinates.x()) < width && 0 <= normalizedSceenSpaceCoordinates.y() && int(normalizedSceenSpaceCoordinates.y()) < height)
         {
-            if (frameIdx == 21)
-            {
-                // printf("landed in the camera\n");
-            }
             unsigned int pixelCoordinates = int(normalizedSceenSpaceCoordinates.x()) + int(normalizedSceenSpaceCoordinates.y()) * width;
             // Lookup global coordinates
             Vector3f matchedVertex = raycastVertexMap[pixelCoordinates];
@@ -95,28 +91,16 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
 
             if (isFinite(matchedVertex) && isFinite(matchedNormal))
             {
-                if (iteration ==0 && frameIdx == 21 && (transformedCurrentVertex - matchedVertex).norm() > vertex_diff_threshold)
-                {
-                    //printf("Distance is too big! Distance: %f\n", (transformedCurrentVertex - matchedVertex).norm());
-                }
                 // Bring transformedCurrentVertex into global frame
                 transformedCurrentVertex = currentToGlobalTransformation.block<3, 3>(0, 0) * vertex + currentToGlobalTransformation.block<3, 1>(0, 3);
                 if ((transformedCurrentVertex - matchedVertex).norm() < vertex_diff_threshold)
                 {
                     Matrix3f rotation = currentToGlobalTransformation.block<3, 3>(0, 0);
-                    if (frameIdx == 5 && iteration == 0 && level == 2 && (1 - matchedNormal.dot(rotation * normal)) > normal_diff_threshold)
-                    {
-                        //printf("1 - Scalar product is: %f\n", (1 - matchedNormal.dot(rotation * normal)));
-                    }
                     Vector3f rotatedNormal = (rotation * normal);
                     matchedNormal.normalize();
                     rotatedNormal.normalize();
                     if ((1 - matchedNormal.dot(rotatedNormal)) < normal_diff_threshold)
                     {
-                        if (frameIdx == 21 && iteration == 0)
-                        {
-                            //printf("Matched normal is close enough to normal\n");
-                        }
                         // We found a match! Transform both correspondence vertices to global frame
                         matchedVertexMap[idx] = matchedVertex;
                         matchedNormalMap[idx] = matchedNormal;
@@ -312,20 +296,6 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
                                                                     currentFrameToGlobalTransformation,
                                                                     m_width, m_height, m_vertex_diff_threshold, m_normal_diff_threshold, MINF,
                                                                     matrices, vectors, m_pointToPointWeight, level, iteration, frameIdx);
-    Vector3f *matchedVertexMapCPU = new Vector3f[numberPoints];
-    cudaMemcpy(matchedVertexMapCPU, matchedVertexMap, numberPoints * sizeof(Vector3f), cudaMemcpyDeviceToHost);
-    unsigned int matches = 0;
-    for (size_t i = 0; i < numberPoints; i++)
-    {
-        Vector3f test;
-        if (matchedVertexMapCPU[i].allFinite())
-        {
-            matches++;
-        }
-    }
-    std::cout << "On level " << level << " in iteration " << iteration << " found " << matches << " matches" << std::endl;
-
-    delete[] matchedVertexMapCPU;
     cudaFree(matchedVertexMap);
     cudaFree(matchedNormalMap);
 
@@ -367,16 +337,6 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     // solution -> (beta, gamma, alpha, tx, ty, tz)
     BDCSVD<MatrixXf> svd = BDCSVD<MatrixXf>(designMatrix, ComputeThinU | ComputeThinV);
     Eigen::Matrix<float, 6, 1> solution = svd.solve(designVector);
-
-    if (matches == 0)
-    {
-        std::cout << "Design Matrix:" << std::endl;
-        std::cout << designMatrix << std::endl;
-        std::cout << "Design Vector:" << std::endl;
-        std::cout << designVector << std::endl;
-        std::cout << "Solution Vector:" << std::endl;
-        std::cout << solution << std::endl;
-    }
 
     Matrix4f output;
     float alpha = -solution(0);
