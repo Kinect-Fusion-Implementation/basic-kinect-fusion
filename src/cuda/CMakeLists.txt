@@ -1,12 +1,10 @@
 set(CUDA_HEADER_FILES 
-    ./Test.h
     ./CudaVoxelGrid.h
     ./PointCloud.h
     ./PointCloudPyramid.h
     ./ICPOptimizer.h
     )
 set(CUDA_SOURCE_FILES 
-   ./Test.cu
    ./CudaVoxelGrid.cu
    ./PointCloud.cu
    ./PointCloudPyramid.cu
