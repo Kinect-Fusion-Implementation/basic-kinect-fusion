@@ -103,16 +103,19 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
                 transformedCurrentVertex = currentToGlobalTransformation.block<3, 3>(0, 0) * vertex + currentToGlobalTransformation.block<3, 1>(0, 3);
                 if ((transformedCurrentVertex - matchedVertex).norm() < vertex_diff_threshold)
                 {
-                    if (frameIdx == 21 && iteration == 0)
-                    {
-                        //printf("Matched vertex is close enough\n");
-                    }
                     Matrix3f rotation = currentToGlobalTransformation.block<3, 3>(0, 0);
-                    if ((1 - matchedNormal.dot(rotation * normal)) < normal_diff_threshold)
+                    if (frameIdx == 5 && iteration == 0 && level == 2 && (1 - matchedNormal.dot(rotation * normal)) > normal_diff_threshold)
+                    {
+                        //printf("1 - Scalar product is: %f\n", (1 - matchedNormal.dot(rotation * normal)));
+                    }
+                    Vector3f rotatedNormal = (rotation * normal);
+                    matchedNormal.normalize();
+                    rotatedNormal.normalize();
+                    if ((1 - matchedNormal.dot(rotatedNormal)) < normal_diff_threshold)
                     {
                         if (frameIdx == 21 && iteration == 0)
                         {
-                            printf("Matched normal is close enough to normal\n");
+                            //printf("Matched normal is close enough to normal\n");
                         }
                         // We found a match! Transform both correspondence vertices to global frame
                         matchedVertexMap[idx] = matchedVertex;

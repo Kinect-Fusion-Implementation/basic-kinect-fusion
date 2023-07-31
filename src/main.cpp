@@ -44,8 +44,9 @@ int icp_accuracy_test()
         VoxelGrid grid(Vector3f(-2.0, -1.0, -2.0), numberVoxelsWidth, numberVoxelsHeight, numberVoxelsDepth, sensor.getDepthImageHeight(), sensor.getDepthImageWidth(), scale, truncation);
 
         float vertex_diff_threshold = 0.05;
-        float normal_diff_threshold = 0.05;
-        std::vector<int> iterations_per_level = {10, 10, 10};
+        // Approx 35 degrees
+        float normal_diff_threshold = 0.15;
+        std::vector<int> iterations_per_level = {10, 5, 3};
         ICPOptimizer optimizer(sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), vertex_diff_threshold, normal_diff_threshold, iterations_per_level, 0.2f);
 
         Matrix4f prevFrameToGlobal = Matrix4f::Identity();
@@ -68,37 +69,38 @@ int icp_accuracy_test()
                         idx++;
                         continue;
                 }
-                if (idx == 22)
-                {
-                        return 0;
-                }
-                idx++;
 
                 PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 2, windowSize, blockSize, sigmaR, sigmaS);
-
+                if (idx < 20 || idx % 100 == 0)
+                {
+                        ImageUtil::saveNormalMapToImage((float *)pyramid.getPointClouds().at(0).getNormalsCPU(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("PointCloudImage_") + std::to_string(idx), "");
+                        // writeMesh(pyramid.getPointClouds().at(0).getPointsCPU(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), Configuration::getOutputDirectory() + "PointCloudMesh_" + std::to_string(idx) + ".off");
+                }
                 // RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
                 RaycastImage raycast = grid.raycastVoxelGrid(prevFrameToGlobal.inverse(), sensor.getDepthIntrinsics());
-                if (idx % 100 == 0)
+                if (idx < 20  || idx % 100 == 0)
                 {
                         ImageUtil::saveNormalMapToImage((float *)raycast.m_normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("RaycastedImage_") + std::to_string(idx), "");
-                        writeMesh(raycast.m_vertexMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), Configuration::getOutputDirectory() + "RaycastedMesh_" + std::to_string(idx) + ".off");
+                        // writeMesh(raycast.m_vertexMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), Configuration::getOutputDirectory() + "RaycastedMesh_" + std::to_string(idx) + ".off");
                 }
-                Matrix4f gt_extrinsics = sensor.getTrajectory() * trajectoryOffset;
-                Matrix4f gt_pose = gt_extrinsics.inverse();
                 // Estimate the pose of the current frame
                 Matrix4f estPose;
+                Matrix4f gt_extrinsics = sensor.getTrajectory() * trajectoryOffset;
+                Matrix4f gt_pose = gt_extrinsics.inverse();
+
                 estPose = optimizer.optimize(pyramid, raycast.m_vertexMapGPU, raycast.m_normalMapGPU, prevFrameToGlobal, idx);
                 std::cout << "Ground Truth: " << std::endl
                           << gt_pose << std::endl;
-                // std::cout << "Determinant: " << gt_pose.determinant() << std::endl;
                 std::cout << "Estimated: " << std::endl
                           << estPose << std::endl;
                 std::cout << "Determinant estimate: " << estPose.determinant() << std::endl;
                 std::cout << "Norm: " << (estPose - gt_pose).norm() << std::endl;
+                
                 // Use estimated pose as prevPose for next frame
-                prevFrameToGlobal = sensor.getTrajectory() * trajectoryOffset;
-                // grid.updateTSDF(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
-                grid.updateTSDF(estPose.inverse(), sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
+                prevFrameToGlobal = gt_pose;
+                grid.updateTSDF(gt_extrinsics, sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
+                //grid.updateTSDF(estPose.inverse(), sensor.getDepthIntrinsics(), depth, sensor.getDepthImageWidth(), sensor.getDepthImageHeight());
+                idx++;
         }
         run_marching_cubes(grid, idx);
 
@@ -117,7 +119,8 @@ int main()
                 int result = 0;
 
                 VirtualSensor sensor;
-                if (!sensor.init(Configuration::getDataSetPath())) {
+                if (!sensor.init(Configuration::getDataSetPath()))
+                {
                         std::cerr << "Failed to initialize sensor data!" << std::endl;
                         return 0;
                 }
@@ -195,6 +198,10 @@ int main()
                         auto pyramidComputeStart = std::chrono::high_resolution_clock::now();
 #endif
                         PointCloudPyramid pyramid(sensor.getDepth(), sensor.getDepthIntrinsics(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), 2, windowSize, blockSize, sigmaR, sigmaS);
+                        if (idx % 100 == 0)
+                        {
+                                ImageUtil::saveNormalMapToImage((float *)pyramid.getPointClouds().at(0).getNormalsCPU(), sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("PyramidImage_") + std::to_string(idx) + "_level" + std::to_string(0), "");
+                        }
 #if EVAL_MODE
                         auto pyramidComputeEnd = std::chrono::high_resolution_clock::now();
                         measurementsPyramidCompute.push_back(pyramidComputeEnd - pyramidComputeStart);
@@ -208,7 +215,7 @@ int main()
                                 {
                                         std::cout << "Generating mesh for level " << i << std::endl;
                                         ImageUtil::saveNormalMapToImage((float *)pyramid.getPointClouds().at(i).getNormalsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, std::string("PyramidImage_") + std::to_string(idx) + "_level" + std::to_string(i), "");
-                                        //writeMesh(pyramid.getPointClouds().at(i).getPointsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, Configuration::getOutputDirectory() + std::string("PyramidMesh_") + std::to_string(idx) + "_level" + std::to_string(i) + ".off");
+                                        // writeMesh(pyramid.getPointClouds().at(i).getPointsCPU(), sensor.getDepthImageWidth() >> i, sensor.getDepthImageHeight() >> i, Configuration::getOutputDirectory() + std::string("PyramidMesh_") + std::to_string(idx) + "_level" + std::to_string(i) + ".off");
                                 }
                         }
 #endif
@@ -216,8 +223,8 @@ int main()
                         auto raycastStart = std::chrono::high_resolution_clock::now();
 #endif
                         RaycastImage raycast = grid.raycastVoxelGrid(sensor.getTrajectory() * trajectoryOffset, sensor.getDepthIntrinsics());
-#if SAVE_IMAGE_MODE
                         ImageUtil::saveNormalMapToImage((float *)raycast.m_normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("RaycastedImage_") + std::to_string(idx), "");
+#if SAVE_IMAGE_MODE
                         // writeMesh(raycast.m_vertexMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), Configuration::getOutputDirectory() + "RaycastedMesh_" + std::to_string(idx) + ".off");
 
 #endif
