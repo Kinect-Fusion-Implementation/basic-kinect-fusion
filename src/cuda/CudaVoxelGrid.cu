@@ -140,7 +140,7 @@ __global__ void raycastVoxelGridKernel(Matrix4f poseMatrix, Matrix4f extrinsics,
 		// Compute screen space coordinates with unit value along z axis
 		coordinates = intrinsics.inverse() * coordinates;
 		// Compute the point on the camera screen in world coordinates
-		coordinates = poseMatrix.block<3, 3>(0, 0) * coordinates;
+		coordinates = poseMatrix.block<3, 3>(0, 0) * coordinates + poseMatrix.block<3, 1>(0, 3);
 		Vector3f rayDirection = coordinates - poseMatrix.block<3, 1>(0, 3);
 		// Ray of length 1 meter
 		rayDirection.normalize();
@@ -207,12 +207,13 @@ __global__ void raycastVoxelGridKernel(Matrix4f poseMatrix, Matrix4f extrinsics,
 				{
 					break;
 				}
-				float deltaH = spatialVoxelScale;
 				vertexMap[w + h * imageWidth] = newRayPosition;
+				float deltaH = spatialVoxelScale;
 				float deltaX = (getVoxelData(tsdf, newGridCoordinates.x() - 1, newGridCoordinates.y(), newGridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage - depthValue);
 				float deltaY = (getVoxelData(tsdf, newGridCoordinates.x(), newGridCoordinates.y() - 1, newGridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage - depthValue);
 				float deltaZ = (getVoxelData(tsdf, newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z() - 1, numberVoxelsDepth, numberVoxelsHeight).depthAverage - depthValue);
-				normalMap[w + h * imageWidth] = extrinsics.block<3, 3>(0, 0) * Vector3f(deltaX / deltaH, deltaY / deltaH, deltaZ / deltaH);
+				// normalMap[w + h * imageWidth] = extrinsics.block<3, 3>(0, 0) * Vector3f(deltaX / deltaH, deltaY / deltaH, deltaZ / deltaH);
+				normalMap[w + h * imageWidth] = Vector3f(deltaX / deltaH, deltaY / deltaH, deltaZ / deltaH);
 
 				// For now we just normalize these...
 				normalMap[w + h * imageWidth].normalize();
