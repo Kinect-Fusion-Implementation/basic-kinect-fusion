@@ -1,22 +1,55 @@
 #include "CudaVoxelGrid.h"
 #include <stdio.h>
-#include <iostream>
 
-__host__ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, unsigned int imageHeight, unsigned int imageWidth, float scale, float truncation) : m_gridOriginOffset(gridOrigin.x(), gridOrigin.y(), gridOrigin.z()), m_numberVoxelsWidth(numberVoxelsWidth), m_numberVoxelsDepth(numberVoxelsDepth), m_numberVoxelsHeight(numberVoxelsHeight), m_imageHeight(imageHeight), m_imageWidth(imageWidth), m_spatialVoxelScale(scale), m_truncation(truncation)
+__host__ RaycastImage::~RaycastImage()
 {
-	std::cout << "Setting up grid" << std::endl;
+	if (m_vertexMap != nullptr)
+	{
+		delete[] m_vertexMap;
+	}
+	if (m_normalMap != nullptr)
+	{
+		delete[] m_normalMap;
+	}
+	if (m_vertexMapGPU != nullptr)
+	{
+		cudaFree(m_vertexMapGPU);
+	}
+	if (m_normalMapGPU != nullptr)
+	{
+		cudaFree(m_normalMapGPU);
+	}
+}
+
+__host__ VoxelGrid::VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth,
+							  unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight,
+							  unsigned int imageHeight, unsigned int imageWidth, float scale, float truncation) : m_gridOriginOffset(gridOrigin.x(), gridOrigin.y(), gridOrigin.z()),
+																												  m_numberVoxelsWidth(numberVoxelsWidth), m_numberVoxelsDepth(numberVoxelsDepth),
+																												  m_numberVoxelsHeight(numberVoxelsHeight), m_imageHeight(imageHeight), m_voxelGridCPU(nullptr),
+																												  m_imageWidth(imageWidth), m_spatialVoxelScale(scale), m_truncation(truncation), m_memorySize(sizeof(Vector3f) * m_imageWidth * m_imageHeight)
+{
+	std::cout << numberVoxelsDepth << std::endl;
 	unsigned long long numberVoxels = m_numberVoxelsWidth * m_numberVoxelsDepth * m_numberVoxelsHeight;
 	cudaMalloc(&m_voxelGrid, sizeof(VoxelData) * numberVoxels);
-	
+
 	VoxelData *cleanGrid = new VoxelData[numberVoxels];
 	cudaMemcpy(m_voxelGrid, cleanGrid, sizeof(VoxelData) * numberVoxels, cudaMemcpyHostToDevice);
+	// TODO: Check whether we have to initalize the vertex and normal memory also
 	delete[] cleanGrid;
 }
 
 __host__ VoxelGrid::~VoxelGrid()
 {
-	cudaFree(m_voxelGrid);
-	delete[] m_voxelGridCPU;
+	std::cout << "Destructing VoxelGrid..." << std::endl;
+	if (m_voxelGridCPU != nullptr)
+	{
+		delete[] m_voxelGridCPU;
+	}
+	if (m_voxelGrid != nullptr)
+	{
+		cudaFree(m_voxelGrid);
+	}
+	std::cout << "VoxelGrid destructed" << std::endl;
 }
 
 __host__ void VoxelGrid::sync()
@@ -26,14 +59,10 @@ __host__ void VoxelGrid::sync()
 	cudaMemcpy(m_voxelGridCPU, m_voxelGrid, sizeof(VoxelData) * numberVoxels, cudaMemcpyDeviceToHost);
 }
 
-__host__ Vector3i VoxelGrid::getGridCoordinates(Vector3f worldCoordinates)
-{
-	Vector3f coordinates = worldCoordinates - m_gridOriginOffset;
-	coordinates = coordinates / m_spatialVoxelScale;
-	return Vector3i(int(coordinates.x()), int(coordinates.y()), int(coordinates.z()));
-}
-
-__global__ void updateTSDFKernel(Matrix4f extrinsics, Matrix3f intrinsics, float *depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight, float truncation, float offset_x, float offset_y, float offset_z, float spatialVoxelScale, VoxelData *tsdf, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight)
+__global__ void updateTSDFKernel(Matrix4f extrinsics, Matrix3f intrinsics,
+								 float *depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight,
+								 float truncation, float offset_x, float offset_y, float offset_z, float spatialVoxelScale,
+								 VoxelData *tsdf, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight)
 {
 	unsigned w = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned h = blockIdx.y * blockDim.y + threadIdx.y;
@@ -69,8 +98,9 @@ __global__ void updateTSDFKernel(Matrix4f extrinsics, Matrix3f intrinsics, float
 		}
 
 		// There is an alternative formulation to this in the second paper...
-		// This will be >0 for points between camera and surface and < 0 for points behind the surface
-		float sdfEstimate = min(max(depth - distanceOfVoxelToCamera, -truncation), truncation);
+		// This will be > 0 for points between camera and surface and < 0 for points behind the surface
+		float lambda = (intrinsics.inverse() * Vector3f(pixelCoordinates.x(), pixelCoordinates.y(), 1)).norm();
+		float sdfEstimate = min(max(depth - distanceOfVoxelToCamera / lambda, -truncation), truncation);
 
 		if (fabsf(sdfEstimate) < truncation)
 		{
@@ -81,6 +111,138 @@ __global__ void updateTSDFKernel(Matrix4f extrinsics, Matrix3f intrinsics, float
 			voxel.weights += newWeight;
 		}
 	}
+}
+
+__host__ void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, float *depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight)
+{
+	// Assume 240x240x240
+	dim3 threadBlocks(20, 20);
+	dim3 blocks(m_numberVoxelsWidth / 20, m_numberVoxelsHeight / 20);
+	float *depthDataGPU;
+	cudaMalloc(&depthDataGPU, sizeof(float) * depthMapWidth * depthMapHeight);
+	cudaMemcpy(depthDataGPU, depthMap, sizeof(float) * depthMapWidth * depthMapHeight, cudaMemcpyHostToDevice);
+	updateTSDFKernel<<<blocks, threadBlocks>>>(extrinsics, intrinsics, depthDataGPU, depthMapWidth, depthMapHeight, m_truncation, m_gridOriginOffset.x(), m_gridOriginOffset.y(), m_gridOriginOffset.z(), m_spatialVoxelScale, m_voxelGrid, m_numberVoxelsDepth, m_numberVoxelsHeight);
+	cudaFree(depthDataGPU);
+}
+
+// Computes the pointcloud in world coordinates
+__global__ void raycastVoxelGridKernel(Matrix4f poseMatrix, Matrix4f extrinsics, Matrix3f intrinsics, Vector3f *vertexMap, Vector3f *normalMap,
+									   Vector3f gridOffset, float spatialVoxelScale,
+									   VoxelData *tsdf, unsigned int numberVoxelsDepth, unsigned int numberVoxelsWidth, unsigned int numberVoxelsHeight,
+									   unsigned int imageWidth, float truncation, float mINF)
+{
+	unsigned w = blockIdx.x * blockDim.x + threadIdx.x;
+	unsigned h = blockIdx.y * blockDim.y + threadIdx.y;
+	{
+		// First use the homogeneouse pixel coordinates
+		Vector3f coordinates(w, h, 1);
+		// Compute screen space coordinates with unit value along z axis
+		coordinates = intrinsics.inverse() * coordinates;
+		// Compute the point on the camera screen in world coordinates
+		coordinates = poseMatrix.block<3, 3>(0, 0) * coordinates + poseMatrix.block<3, 1>(0, 3);
+		Vector3f rayDirection = coordinates - poseMatrix.block<3, 1>(0, 3);
+		// Ray of length 1 meter
+		rayDirection.normalize();
+		// We start tracing only 40 centimeters away from the camera
+		float distanceTravelled = 0.4;
+		Vector3f rayPosition = poseMatrix.block<3, 1>(0, 3) + distanceTravelled * rayDirection;
+
+		// Vector3i gridCoordinates = getGridCoordinates(rayPosition);
+		Vector3i gridCoordinates = getGridCoordinates(rayPosition, gridOffset, spatialVoxelScale);
+		if (gridCoordinates.x() < 0 || gridCoordinates.x() >= numberVoxelsWidth || gridCoordinates.y() < 0 || gridCoordinates.y() >= numberVoxelsHeight || gridCoordinates.z() < 0 || gridCoordinates.z() >= numberVoxelsDepth)
+		{
+			return;
+		}
+		float initialTSDFValue = getVoxelData(tsdf, gridCoordinates.x(), gridCoordinates.y(), gridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage;
+		if (initialTSDFValue < 0)
+		{
+			// Camera is too close to the surface
+			vertexMap[w + h * imageWidth] = Vector3f(mINF, mINF, mINF);
+			normalMap[w + h * imageWidth] = Vector3f(mINF, mINF, mINF);
+			return;
+		}
+
+		while (distanceTravelled < 8.0)
+		{
+			// We assume that we are in the volume
+			if (gridCoordinates.x() < 0 || gridCoordinates.x() >= numberVoxelsWidth || gridCoordinates.y() < 0 || gridCoordinates.y() >= numberVoxelsHeight || gridCoordinates.z() < 0 || gridCoordinates.z() >= numberVoxelsDepth)
+			{
+				// std::cout << "Outside of voxel grid";
+				vertexMap[w + h * imageWidth] = Vector3f(mINF, mINF, mINF);
+				normalMap[w + h * imageWidth] = Vector3f(mINF, mINF, mINF);
+				return;
+			}
+			// Set up next step
+			float stepSize = 0;
+			float currentTSDFValue = getVoxelData(tsdf, gridCoordinates.x(), gridCoordinates.y(), gridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage;
+			if (currentTSDFValue >= truncation)
+			{
+				stepSize = truncation;
+				rayPosition = rayPosition + stepSize * rayDirection;
+				distanceTravelled += stepSize;
+				// There can be no interface here as we are >= truncation away from a surface
+				continue;
+			}
+			// If we are close to a surface, make a small step
+			stepSize = max(spatialVoxelScale, currentTSDFValue) * 0.5;
+			distanceTravelled += stepSize;
+			Vector3f newRayPosition = rayPosition + stepSize * rayDirection;
+			Vector3i newGridCoordinates = getGridCoordinates(newRayPosition, gridOffset, spatialVoxelScale);
+			if (newGridCoordinates.x() < 0 || newGridCoordinates.x() >= numberVoxelsWidth || newGridCoordinates.y() < 0 || newGridCoordinates.y() >= numberVoxelsHeight || newGridCoordinates.z() < 0 || newGridCoordinates.z() >= numberVoxelsDepth)
+			{
+				break;
+			}
+			float newTSDFValue = getVoxelData(tsdf, newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage;
+			if (newTSDFValue < 0)
+			{
+				// Interpolation formula page 6 in the paper
+				float interpolatedStepSize = stepSize * (currentTSDFValue / (currentTSDFValue - newTSDFValue));
+				newRayPosition = rayPosition + interpolatedStepSize * rayDirection;
+				newGridCoordinates = getGridCoordinates(newRayPosition, gridOffset, spatialVoxelScale);
+				float depthValue = getVoxelData(tsdf, newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage;
+				// On average the distance between measurements is the distance of voxel centers -> the voxel scale
+				// Here we could definitely improve on accuracy
+				if (newGridCoordinates.x() - 1 < 0 || newGridCoordinates.y() - 1 < 0 || newGridCoordinates.z() - 1 < 0)
+				{
+					break;
+				}
+				vertexMap[w + h * imageWidth] = newRayPosition;
+				float deltaH = spatialVoxelScale;
+				float deltaX = (getVoxelData(tsdf, newGridCoordinates.x() - 1, newGridCoordinates.y(), newGridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage - depthValue);
+				float deltaY = (getVoxelData(tsdf, newGridCoordinates.x(), newGridCoordinates.y() - 1, newGridCoordinates.z(), numberVoxelsDepth, numberVoxelsHeight).depthAverage - depthValue);
+				float deltaZ = (getVoxelData(tsdf, newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z() - 1, numberVoxelsDepth, numberVoxelsHeight).depthAverage - depthValue);
+				// normalMap[w + h * imageWidth] = extrinsics.block<3, 3>(0, 0) * Vector3f(deltaX / deltaH, deltaY / deltaH, deltaZ / deltaH);
+				normalMap[w + h * imageWidth] = Vector3f(deltaX / deltaH, deltaY / deltaH, deltaZ / deltaH);
+
+				// For now we just normalize these...
+				normalMap[w + h * imageWidth].normalize();
+				break;
+			}
+			rayPosition = newRayPosition;
+			gridCoordinates = newGridCoordinates;
+		}
+	}
+}
+
+__host__ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsics)
+{
+	dim3 threadBlocks(20, 20);
+	dim3 blocks(m_imageWidth / 20, m_imageHeight / 20);
+	RaycastImage image(m_imageWidth, m_imageHeight);
+	// Allocate memory and pass ownership to RaycastImage (RAII)
+	cudaMalloc(&image.m_vertexMapGPU, m_memorySize);
+	cudaMalloc(&image.m_normalMapGPU, m_memorySize);
+	// Clean GPU memory:
+	cudaMemcpy(image.m_vertexMapGPU, image.m_vertexMap, m_memorySize, cudaMemcpyHostToDevice);
+	cudaMemcpy(image.m_normalMapGPU, image.m_normalMap, m_memorySize, cudaMemcpyHostToDevice);
+	raycastVoxelGridKernel<<<blocks, threadBlocks>>>(extrinsics.inverse(), extrinsics, intrinsics,
+													 image.m_vertexMapGPU, image.m_normalMapGPU, m_gridOriginOffset,
+													 m_spatialVoxelScale, m_voxelGrid,
+													 m_numberVoxelsDepth, m_numberVoxelsWidth, m_numberVoxelsHeight,
+													 m_imageWidth, m_truncation, MINF);
+	cudaMemcpy(image.m_vertexMap, image.m_vertexMapGPU, m_memorySize, cudaMemcpyDeviceToHost);
+	cudaMemcpy(image.m_normalMap, image.m_normalMapGPU, m_memorySize, cudaMemcpyDeviceToHost);
+	return image;
 }
 
 __device__ Vector3f getWorldCoordinates(int x, int y, int z, float offset_x, float offset_y, float offset_z, float spatialVoxelScale)
@@ -98,122 +260,23 @@ __device__ VoxelData &getVoxelData(VoxelData *voxelGrid, int w, unsigned int h, 
 	return voxelGrid[d + numberVoxelsDepth * h + numberVoxelsDepth * numberVoxelsHeight * w];
 }
 
-__host__ void VoxelGrid::updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, float *depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight)
+__device__ Vector3i getGridCoordinates(Vector3f worldCoordinates, Vector3f gridOriginOffset, float spatialVoxelScle)
 {
-	// Assume 240x240x240
-	dim3 threadBlocks(20, 20);
-	dim3 blocks(m_numberVoxelsWidth/20, m_numberVoxelsHeight/20);
-	float *depthDataGPU;
-	cudaMalloc(&depthDataGPU, sizeof(float) * depthMapWidth * depthMapHeight);
-	cudaMemcpy(depthDataGPU, depthMap, sizeof(float) * depthMapWidth * depthMapHeight, cudaMemcpyHostToDevice);
-
-	updateTSDFKernel<<<blocks, threadBlocks>>>(extrinsics, intrinsics, depthDataGPU, depthMapWidth, depthMapHeight, m_truncation, this->m_gridOriginOffset.x(), this->m_gridOriginOffset.y(), this->m_gridOriginOffset.z(), this->m_spatialVoxelScale, m_voxelGrid, m_numberVoxelsDepth, m_numberVoxelsHeight);
-	cudaGetLastError();
-	cudaDeviceSynchronize();
-}
-
-__host__ RaycastImage VoxelGrid::raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsics)
-{
-	RaycastImage result = RaycastImage(m_imageWidth, m_imageHeight);
-
-	Matrix4f poseMatrix = extrinsics.inverse();
-
-	#pragma omp parallel for collapse(2)
-	for (size_t w = 0; w < m_imageWidth; w++)
-	{
-		for (size_t h = 0; h < m_imageHeight; h++)
-		{
-			// First use the homogeneouse pixel coordinates
-			Vector3f coordinates(w, h, 1);
-			// Compute screen space coordinates with unit value along z axis
-			coordinates = intrinsics.inverse() * coordinates;
-			// Compute the point on the camera screen in world coordinates
-			coordinates = poseMatrix.block<3,3>(0,0) * coordinates;
-			Vector3f rayDirection = coordinates - poseMatrix.block<3, 1>(0, 3);
-			// Ray of length 1 meter
-			rayDirection.normalize();
-			// We start tracing only 40 centimeters away from the camera
-			float distanceTravelled = 0.4;
-			Vector3f rayPosition = poseMatrix.block<3, 1>(0, 3) + distanceTravelled * rayDirection;
-
-			Vector3i gridCoordinates = getGridCoordinates(rayPosition);
-			if (gridCoordinates.x() < 0 || gridCoordinates.x() >= m_numberVoxelsWidth || gridCoordinates.y() < 0 || gridCoordinates.y() >= m_numberVoxelsHeight || gridCoordinates.z() < 0 || gridCoordinates.z() >= m_numberVoxelsDepth)
-			{
-				std::cout << "Start position outside of voxel grid" << std::endl;
-				continue;
-			}
-			float initialTSDFValue = this->getVoxelData(gridCoordinates.x(), gridCoordinates.y(), gridCoordinates.z()).depthAverage;
-			if (initialTSDFValue < 0)
-			{
-				// Camera is too close to the surface
-				continue;
-			}
-
-			while (distanceTravelled < 8.0)
-			{
-				// We assume that we are in the volume
-				if (gridCoordinates.x() < 0 || gridCoordinates.x() >= m_numberVoxelsWidth || gridCoordinates.y() < 0 || gridCoordinates.y() >= m_numberVoxelsHeight || gridCoordinates.z() < 0 || gridCoordinates.z() >= m_numberVoxelsDepth)
-				{
-					// std::cout << "Outside of voxel grid";
-					break;
-				}
-				// Set up next step
-				float stepSize = 0;
-				float currentTSDFValue = this->getVoxelData(gridCoordinates.x(), gridCoordinates.y(), gridCoordinates.z()).depthAverage;
-				if (currentTSDFValue >= m_truncation)
-				{
-					stepSize = m_truncation;
-					rayPosition = rayPosition + stepSize * rayDirection;
-					distanceTravelled += stepSize;
-					// There can be no interface here as we are >= truncation away from a surface
-					continue;
-				}
-				// If we are close to a surface, make a small step
-				stepSize = std::max(m_spatialVoxelScale, currentTSDFValue) * 0.5;
-				distanceTravelled += stepSize;
-				Vector3f newRayPosition = rayPosition + stepSize * rayDirection;
-				Vector3i newGridCoordinates = getGridCoordinates(newRayPosition);
-				if (newGridCoordinates.x() < 0 || newGridCoordinates.x() >= m_numberVoxelsWidth || newGridCoordinates.y() < 0 || newGridCoordinates.y() >= m_numberVoxelsHeight || newGridCoordinates.z() < 0 || newGridCoordinates.z() >= m_numberVoxelsDepth)
-				{
-					break;
-				}
-				float newTSDFValue = this->getVoxelData(newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z()).depthAverage;
-				if (newTSDFValue < 0)
-				{
-					// Interpolation formula page 6 in the paper
-					float interpolatedStepSize = stepSize * (currentTSDFValue / (currentTSDFValue - newTSDFValue));
-					rayPosition = rayPosition + interpolatedStepSize * rayDirection;
-					newGridCoordinates = getGridCoordinates(rayPosition);
-					float depthValue = getVoxelData(newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z()).depthAverage;
-					// On average the distance between measurements is the distance of voxel centers -> the voxel scale 
-					// Here we could definitely improve on accuracy
-					float deltaH = m_spatialVoxelScale;
-					if (newGridCoordinates.x() + 1 >= m_numberVoxelsWidth || newGridCoordinates.y() + 1 >= m_numberVoxelsHeight || newGridCoordinates.z() + 1 >= m_numberVoxelsDepth)
-					{
-						break;
-					}
-					result.vertexMap[w + h * m_imageWidth] = rayPosition;
-					float deltaX = (getVoxelData(newGridCoordinates.x() + 1, newGridCoordinates.y(), newGridCoordinates.z()).depthAverage - depthValue);
-					float deltaY = (getVoxelData(newGridCoordinates.x(), newGridCoordinates.y() + 1, newGridCoordinates.z()).depthAverage - depthValue);
-					float deltaZ = (getVoxelData(newGridCoordinates.x(), newGridCoordinates.y(), newGridCoordinates.z() + 1).depthAverage - depthValue);
-					result.normalMap[w + h * m_imageWidth] = extrinsics.block<3,3>(0,0) * Vector3f(deltaX / deltaH, deltaY / deltaH, deltaZ / deltaH);
-	
-					// For now we just normalize these...
-					result.normalMap[w + h * m_imageWidth].normalize();
-					break;
-				}
-				rayPosition = newRayPosition;
-				gridCoordinates = newGridCoordinates;
-			}
-		}
-	}
-
-	return result;
+	Vector3f coordinates = worldCoordinates - gridOriginOffset;
+	coordinates = coordinates / spatialVoxelScle;
+	return Vector3i(int(coordinates.x()), int(coordinates.y()), int(coordinates.z()));
 }
 
 __host__ VoxelData &VoxelGrid::getVoxelData(unsigned int w, unsigned int h, unsigned int d)
 {
 	return m_voxelGridCPU[d + m_numberVoxelsDepth * h + m_numberVoxelsDepth * m_numberVoxelsHeight * w];
+}
+
+__host__ Vector3i VoxelGrid::getGridCoordinates(Vector3f worldCoordinates)
+{
+	Vector3f coordinates = worldCoordinates - m_gridOriginOffset;
+	coordinates = coordinates / m_spatialVoxelScale;
+	return Vector3i(int(coordinates.x()), int(coordinates.y()), int(coordinates.z()));
 }
 
 __host__ Vector3f VoxelGrid::getCellCenterInWorldCoords(Vector3i gridCell)

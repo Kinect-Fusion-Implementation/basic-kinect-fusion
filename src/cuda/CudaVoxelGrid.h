@@ -1,5 +1,6 @@
 #pragma once
 #include "../kinect_fusion/Eigen.h"
+#include <iostream>
 
 struct VoxelData
 {
@@ -7,34 +8,30 @@ struct VoxelData
     float weights = 0;
     int freeSpace = 0;
 
-    VoxelData()
-    {
-    }
+    VoxelData() {}
     VoxelData(float depthAverage, float weights) : depthAverage(depthAverage), weights(weights), freeSpace(0) {}
 };
 
 struct RaycastImage
 {
-    Vector3f *vertexMap;
-    Vector3f *normalMap;
+    Vector3f *m_vertexMap;
+    Vector3f *m_normalMap;
+    Vector3f *m_vertexMapGPU;
+	Vector3f *m_normalMapGPU;
 
-    RaycastImage() = delete;
-    RaycastImage(int width, int height)
+    RaycastImage() : m_vertexMap(nullptr), m_normalMap(nullptr), m_vertexMapGPU(nullptr), m_normalMapGPU(nullptr){};
+    RaycastImage(int width, int height): m_vertexMapGPU(nullptr), m_normalMapGPU(nullptr)
     {
-        vertexMap = new Vector3f[width * height];
-        normalMap = new Vector3f[width * height];
+        m_vertexMap = new Vector3f[width * height];
+        m_normalMap = new Vector3f[width * height];
         for (int i = 0; i < width * height; i++)
         {
-            vertexMap[i] = Vector3f(MINF, MINF, MINF);
-            normalMap[i] = Vector3f(MINF, MINF, MINF);
+            m_vertexMap[i] = Vector3f(MINF, MINF, MINF);
+            m_normalMap[i] = Vector3f(MINF, MINF, MINF);
         }
     };
 
-    ~RaycastImage()
-    {
-        delete[] vertexMap;
-        delete[] normalMap;
-    }
+    ~RaycastImage();
 };
 
 /**
@@ -56,8 +53,6 @@ private:
 
     // Defines the spatial extend each voxel will represent along each direction (side length of cube)
 
-    VoxelGrid() = delete;
-
 public:
     unsigned int m_numberVoxelsWidth;
     unsigned int m_numberVoxelsDepth;
@@ -67,15 +62,29 @@ public:
     float m_spatialVoxelScale;
     float m_truncation;
     Vector3f m_gridOriginOffset;
+    size_t m_memorySize;
 
     /**
      * Allocates memory on the GPU for the voxel grid and I/O from raycasting
      */
     VoxelGrid(Vector3f gridOrigin, unsigned int numberVoxelsWidth, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight, unsigned int imageHeight, unsigned int imageWidth, float scale, float truncation);
 
+    VoxelGrid(){}
+
     ~VoxelGrid();
 
     void sync();
+
+    /**
+     * Calls the corresponding kernel to update TSDF.
+     * Updates TSDF Voxel grid using Volumetric Fusion algorithm
+     */
+    void updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, float *depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight);
+
+    /**
+     * Provides the point cloud that is the result of raycasting the voxel grid
+     */
+    RaycastImage raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsics);
 
     /**
      * Transforms coordinates in the voxel grids (grid indices along each direction (width, height, depth)) into a corresponding point in world coordinates.
@@ -93,18 +102,10 @@ public:
      * We store our sdf data in depth > height > width
      */
     VoxelData &getVoxelData(unsigned int w, unsigned int h, unsigned int d);
-
-    /**
-     * Provides the point cloud that is the result of raycasting the voxel grid
-     */
-    RaycastImage raycastVoxelGrid(Matrix4f extrinsics, Matrix3f intrinsics);
-    /**
-     * Calls the corresponding kernel to update TSDF.
-     * Updates TSDF Voxel grid using Volumetric Fusion algorithm
-     */
-    void updateTSDF(Matrix4f extrinsics, Matrix3f intrinsics, float *depthMap, unsigned int depthMapWidth, unsigned int depthMapHeight);
 };
 
 VoxelData &getVoxelData(VoxelData *voxelGrid, int w, unsigned int h, unsigned int d, unsigned int numberVoxelsDepth, unsigned int numberVoxelsHeight);
 
 Vector3f getWorldCoordinates(int x, int y, int z, float offset_x, float offset_y, float offset_z, float spatialVoxelScale);
+
+Vector3i getGridCoordinates(Vector3f worldCoordinates, Vector3f gridOriginOffset, float spatialVoxelScle);

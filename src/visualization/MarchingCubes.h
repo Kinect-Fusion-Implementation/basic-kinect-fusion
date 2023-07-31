@@ -489,6 +489,7 @@ void run_marching_cubes(VoxelGrid& tsdfVoxelGrid, int idx)
 	std::cout << "Syncing finished" << std::endl;
 	for (unsigned int w = 0; w < tsdfVoxelGrid.m_numberVoxelsWidth - 1; w++)
 	{
+		std::cout << "At w = " << w << std::endl; 
 		for (unsigned int h = 0; h < tsdfVoxelGrid.m_numberVoxelsHeight - 1; h++)
 		{
 			for (unsigned int d = 0; d < tsdfVoxelGrid.m_numberVoxelsDepth - 1; d++)

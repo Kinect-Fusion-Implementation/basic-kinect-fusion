@@ -7,8 +7,6 @@ project(kinect_fusion LANGUAGES CXX CUDA)
 # Options
 set(LIBRARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../Libs CACHE PATH "Path to lib folder")
 set(Eigen3_DIR ${LIBRARY_DIR}/Eigen/share/eigen3/cmake CACHE PATH "Path to installed Eigen")
-set(glog_DIR ${LIBRARY_DIR}/Glog/lib/cmake/glog CACHE PATH "Path to installed glog")
-set(Ceres_DIR ${LIBRARY_DIR}/Ceres/CMake CACHE PATH "Path to installed Ceres")
 set(LIBFREENECT_INCLUDE_DIR "/usr/local/include/libfreenect" CACHE PATH "Path to libfreenect include dir")
 set(LIBFREENECT_LIBRARY_DIR "/usr/local/lib" CACHE PATH "Path to libfreenect library dir")
 
@@ -26,7 +24,7 @@ endif(WIN32)
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(Eigen3_DIR /opt/homebrew/Cellar/eigen/3.4.0_1/share/eigen3/cmake CACHE PATH "Path to installed Eigen")
     set(glog_DIR /opt/homebrew/Cellar/glog/0.6.0/lib/cmake/glog CACHE PATH "Path to installed glog")
-    set(Ceres_DIR /opt/homebrew/Cellar/ceres-solver/2.1.0_3/lib/cmake/Ceres CACHE PATH "Path to installed Ceres")
+    #set(Ceres_DIR /opt/homebrew/Cellar/ceres-solver/2.1.0_3/lib/cmake/Ceres CACHE PATH "Path to installed Ceres")
     #set(Flann_INCLUDE_DIR /opt/homebrew/Cellar/flann/1.9.2_1/ CACHE PATH "Path to Flann source folder")
     set(FreeImage_INCLUDE_DIR /opt/homebrew/Cellar/freeimage/3.18.0/include/ CACHE PATH "Homebrew Path header")
     set(FreeImage_LIBRARY_DIR /opt/homebrew/Cellar/freeimage/3.18.0/lib/ CACHE PATH "Homebrew Path lib")
@@ -49,15 +47,13 @@ else()
     add_compile_definitions(SAVE_IMAGE_MODE=false)
 endif()
 
+find_package(Eigen3 REQUIRED)
 #find_package(nanoflann REQUIRED)
-find_package(Ceres REQUIRED)
 find_package(glog REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(OpenGL)
 find_package(GLUT)
 find_library(libfreenect REQUIRED NAMES libfreenect.so PATHS ) # 
-get_target_property(GLOG_DLL_PATH_DEBUG glog::glog IMPORTED_LOCATION_DEBUG)
-get_target_property(GLOG_DLL_PATH_RELEASE glog::glog IMPORTED_LOCATION_RELEASE)
 
 add_definitions("-D_DISABLE_EXTENDED_ALIGNED_STORAGE")
 
@@ -74,8 +70,6 @@ add_subdirectory(./src/cuda)
 
 set(HEADER_FILES 
     ${SourceCode_DIR}/${CoreCode_DIR}/Eigen.h 
-    ${SourceCode_DIR}/${CoreCode_DIR}/PointCloud.h 
-    ${SourceCode_DIR}/${CoreCode_DIR}/ICPOptimizer.h 
     ${SourceCode_DIR}/${Sensor_DIR}/VirtualSensor.h
     ${SourceCode_DIR}/${Visualization_DIR}/FreeImageHelper.h
     ${SourceCode_DIR}/${Visualization_DIR}/MarchingCubes.h
@@ -93,7 +87,8 @@ find_package(OpenGL)
 find_package(GLUT)
 link_directories(${FreeImage_LIBRARY_DIR})
 add_executable(kinect_fusion ${SourceCode_DIR}/main.cpp ${HEADER_FILES} ${SOURCE_FILES})
-target_link_libraries(kinect_fusion ceres freeimage Eigen3::Eigen ${OpenCV_LIBS} OpenGL::GL GLUT::GLUT Kinect_CUDA ${LIBFREENECT_LIBRARY_DIR}/libfreenect.so)
+
+target_link_libraries(kinect_fusion freeimage Eigen3::Eigen ${OpenCV_LIBS} OpenGL::GL GLUT::GLUT  Kinect_CUDA ${LIBFREENECT_LIBRARY_DIR}/libfreenect.so)
 target_include_directories(kinect_fusion PUBLIC ${EIGEN3_INCLUDE_DIR} ${FreeImage_INCLUDE_DIR} ${GLUT_INCLUDE_DIRS} ${OPENGL_INCLUDE_DIRS}  ${SourceCode_DIR}/${CoreCode_DIR} ${LIBFREENECT_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS}  ./src/cuda /usr/include/libusb-1.0)
 
 # On Windows copy dll to executable folder

@@ -6,4 +6,5 @@ cmake-build-debug
 cmake-build-release
 *.png
 .DS_Store
-
+*.txt
+*.off
