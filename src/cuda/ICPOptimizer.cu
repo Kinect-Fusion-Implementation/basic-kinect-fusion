@@ -23,28 +23,29 @@ __host__ ICPOptimizer::ICPOptimizer(Matrix3f intrinsics, unsigned int width, uns
 }
 
 /**
- * We expect the vertecies of both pointclouds to have 3d coordinates with respect to the camera frame and not the global frame
+ * We expect the vertecies of the pointcloud to have 3d coordinates with respect to the camera frame and not the global frame
+ * Raycast image contains points with coordinates in world frame
  * source -> PointCloud of k-th frame, target -> PointCloud of k-1-th frame
  * Receives the pyramid and raycasted vertex and normal map as points to DEVICE storage
  */
-__host__ Matrix4f ICPOptimizer::optimize(PointCloudPyramid &currentFramePyramid, Vector3f *raycastVertexMap, Vector3f *raycastNormalMap, const Matrix4f &prevFrameToGlobal)
+__host__ Matrix4f ICPOptimizer::optimize(PointCloudPyramid &currentFramePyramid, Vector3f *raycastVertexMap, Vector3f *raycastNormalMap, const Matrix4f &prevFrameToGlobal, unsigned int frameIdx)
 {
     // Initialize frame transformation with identity matrix
+    Matrix4f currentFrameToGlobalTransformation = prevFrameToGlobal;
     Matrix4f currentToPreviousFrame = Matrix4f::Identity();
-    Matrix4f currentToGlobalFrame = prevFrameToGlobal;
     // Iterate over levels for pointClouds the higher the level, the smaller the resolution (level 0 contains original resolution)
     for (int level = currentFramePyramid.getPointClouds().size() - 1; level >= 0; level--)
     {
         for (unsigned int iteration = 0; iteration < m_iterations_per_level[level]; iteration++)
         {
             Matrix4f inc = pointToPointAndPlaneICP(currentFramePyramid.getPointClouds().at(level).getPoints(), currentFramePyramid.getPointClouds().at(level).getNormals(),
-                                                   raycastVertexMap, raycastNormalMap, currentToPreviousFrame, prevFrameToGlobal, level, iteration);
-            currentToGlobalFrame = inc * currentToGlobalFrame;
-            currentToPreviousFrame = prevFrameToGlobal.inverse() * currentToGlobalFrame;
+                                                   raycastVertexMap, raycastNormalMap, currentToPreviousFrame, prevFrameToGlobal, currentFrameToGlobalTransformation, level, iteration, frameIdx);
+            currentFrameToGlobalTransformation = inc * currentFrameToGlobalTransformation;
+            currentToPreviousFrame = prevFrameToGlobal.inverse() * currentFrameToGlobalTransformation;
         }
     }
     // Current Frame -> Global (Pose matrix)
-    return currentToGlobalFrame;
+    return currentFrameToGlobalTransformation;
 }
 
 __device__ bool isFinite(Vector3f vector)
@@ -58,9 +59,10 @@ __device__ bool isFinite(Vector3f vector)
  */
 __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVertices, Vector3f *currentFrameNormals, Vector3f *raycastVertexMap, Vector3f *raycastNormalMap,
                                                       Vector3f *matchedVertexMap, Vector3f *matchedNormalMap,
-                                                      Matrix3f intrinsics, const Matrix4f currentFrameToPrevFrameTransformation, const Matrix4f prevFrameToGlobalTransform,
+                                                      Matrix3f intrinsics, const Matrix4f currentFrameToPrevFrameTransformation, const Matrix4f prevFrameToGlobalTransformation,
+                                                      Matrix4f currentToGlobalTransformation,
                                                       unsigned int width, unsigned int height, float vertex_diff_threshold, float normal_diff_threshold, float minf,
-                                                      Eigen::Matrix<float, 6, 6> *matrices, Eigen::Matrix<float, 6, 1> *vectors, float pointToPointWeight, unsigned int level)
+                                                      Eigen::Matrix<float, 6, 6> *matrices, Eigen::Matrix<float, 6, 1> *vectors, float pointToPointWeight, unsigned int level, unsigned int iteration, unsigned int frameIdx)
 {
     unsigned idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx > (width >> level) * (height >> level))
@@ -79,10 +81,13 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
         // Project transformed Vertex into the cameras screen space
         Vector3f homogeneousScreenSpace = intrinsics * transformedCurrentVertex;
         Vector2f normalizedSceenSpaceCoordinates = Vector2f(homogeneousScreenSpace.x() / homogeneousScreenSpace.z(), homogeneousScreenSpace.y() / homogeneousScreenSpace.z());
-
         // Check if transformedCurrentVertex is in the image
         if (0 <= normalizedSceenSpaceCoordinates.x() && int(normalizedSceenSpaceCoordinates.x()) < width && 0 <= normalizedSceenSpaceCoordinates.y() && int(normalizedSceenSpaceCoordinates.y()) < height)
         {
+            if (frameIdx == 21)
+            {
+                // printf("landed in the camera\n");
+            }
             unsigned int pixelCoordinates = int(normalizedSceenSpaceCoordinates.x()) + int(normalizedSceenSpaceCoordinates.y()) * width;
             // Lookup global coordinates
             Vector3f matchedVertex = raycastVertexMap[pixelCoordinates];
@@ -90,13 +95,25 @@ __global__ void computeCorrespondencesAndSystemKernel(Vector3f *currentFrameVert
 
             if (isFinite(matchedVertex) && isFinite(matchedNormal))
             {
+                if (iteration ==0 && frameIdx == 21 && (transformedCurrentVertex - matchedVertex).norm() > vertex_diff_threshold)
+                {
+                    //printf("Distance is too big! Distance: %f\n", (transformedCurrentVertex - matchedVertex).norm());
+                }
                 // Bring transformedCurrentVertex into global frame
-                transformedCurrentVertex = prevFrameToGlobalTransform.block<3, 3>(0, 0) * transformedCurrentVertex + prevFrameToGlobalTransform.block<3, 1>(0, 3);
+                transformedCurrentVertex = currentToGlobalTransformation.block<3, 3>(0, 0) * vertex + currentToGlobalTransformation.block<3, 1>(0, 3);
                 if ((transformedCurrentVertex - matchedVertex).norm() < vertex_diff_threshold)
                 {
-                    Matrix3f rotation = prevFrameToGlobalTransform.block<3, 3>(0, 0) * (currentFrameToPrevFrameTransformation).block<3, 3>(0, 0);
+                    if (frameIdx == 21 && iteration == 0)
+                    {
+                        //printf("Matched vertex is close enough\n");
+                    }
+                    Matrix3f rotation = currentToGlobalTransformation.block<3, 3>(0, 0);
                     if ((1 - matchedNormal.dot(rotation * normal)) < normal_diff_threshold)
                     {
+                        if (frameIdx == 21 && iteration == 0)
+                        {
+                            printf("Matched normal is close enough to normal\n");
+                        }
                         // We found a match! Transform both correspondence vertices to global frame
                         matchedVertexMap[idx] = matchedVertex;
                         matchedNormalMap[idx] = matchedNormal;
@@ -198,8 +215,8 @@ __global__ void reduce(Eigen::Matrix<float, 6, 1> *constraints, Eigen::Matrix<fl
  *          If a point got no correspondence, the corresponding entry in the correspondence maps is MINF vector
  */
 __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVertices, Vector3f *currentFrameNormals, Vector3f *raycastVertexMap, Vector3f *raycastNormalMap,
-                                                        const Matrix4f &currentFrameToPrevFrameTransformation, const Matrix4f &prevFrameToGlobalTransform,
-                                                        unsigned int level, unsigned int iteration)
+                                                        const Matrix4f &currentFrameToPrevFrameTransformation, const Matrix4f &prevFrameToGlobalTransformation,
+                                                        Matrix4f currentFrameToGlobalTransformation, unsigned int level, unsigned int iteration, unsigned int frameIdx)
 {
     bool test = false;
     if (test)
@@ -227,7 +244,7 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
             }
             // Fill matrices with test data
             cudaMemcpy(matrices, testMatrices, sizeof(Eigen::Matrix<float, 6, 6>) * numberPoints, cudaMemcpyHostToDevice);
-            cudaMemcpy(vectors, testVectors, sizeof(Eigen::Matrix<float, 6, 1>) * numberPoints,cudaMemcpyHostToDevice);
+            cudaMemcpy(vectors, testVectors, sizeof(Eigen::Matrix<float, 6, 1>) * numberPoints, cudaMemcpyHostToDevice);
 
             cudaFree(matchedVertexMap);
             cudaFree(matchedNormalMap);
@@ -272,6 +289,7 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
 
         return Matrix4f::Identity();
     }
+
     auto computeCorrespondenceAndSystemstart = std::chrono::high_resolution_clock::now();
     unsigned int numberPoints = (m_width >> level) * (m_height >> level);
     dim3 threadBlocks(256);
@@ -287,12 +305,24 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
 
     computeCorrespondencesAndSystemKernel<<<blocks, threadBlocks>>>(currentFrameVertices, currentFrameNormals, raycastVertexMap, raycastNormalMap,
                                                                     matchedVertexMap, matchedNormalMap,
-                                                                    m_intrinsics, currentFrameToPrevFrameTransformation, prevFrameToGlobalTransform,
+                                                                    m_intrinsics, currentFrameToPrevFrameTransformation, prevFrameToGlobalTransformation,
+                                                                    currentFrameToGlobalTransformation,
                                                                     m_width, m_height, m_vertex_diff_threshold, m_normal_diff_threshold, MINF,
-                                                                    matrices, vectors, m_pointToPointWeight, level);
-    auto computeCorrespondenceAndSystemEnd = std::chrono::high_resolution_clock::now();
-    std::cout << "Computing correspondence and system took: " << std::chrono::duration_cast<std::chrono::milliseconds>(computeCorrespondenceAndSystemEnd - computeCorrespondenceAndSystemstart).count() << " ms" << std::endl;
-    auto sumAndSolveStart = std::chrono::high_resolution_clock::now();
+                                                                    matrices, vectors, m_pointToPointWeight, level, iteration, frameIdx);
+    Vector3f *matchedVertexMapCPU = new Vector3f[numberPoints];
+    cudaMemcpy(matchedVertexMapCPU, matchedVertexMap, numberPoints * sizeof(Vector3f), cudaMemcpyDeviceToHost);
+    unsigned int matches = 0;
+    for (size_t i = 0; i < numberPoints; i++)
+    {
+        Vector3f test;
+        if (matchedVertexMapCPU[i].allFinite())
+        {
+            matches++;
+        }
+    }
+    std::cout << "On level " << level << " in iteration " << iteration << " found " << matches << " matches" << std::endl;
+
+    delete[] matchedVertexMapCPU;
     cudaFree(matchedVertexMap);
     cudaFree(matchedNormalMap);
 
@@ -334,8 +364,16 @@ __host__ Matrix4f ICPOptimizer::pointToPointAndPlaneICP(Vector3f *currentFrameVe
     // solution -> (beta, gamma, alpha, tx, ty, tz)
     BDCSVD<MatrixXf> svd = BDCSVD<MatrixXf>(designMatrix, ComputeThinU | ComputeThinV);
     Eigen::Matrix<float, 6, 1> solution = svd.solve(designVector);
-    auto sumAndSolveEnd = std::chrono::high_resolution_clock::now();
-    std::cout << "Summing systems and solving it took: " << std::chrono::duration_cast<std::chrono::milliseconds>(sumAndSolveEnd - sumAndSolveStart).count() << " ms" << std::endl;
+
+    if (matches == 0)
+    {
+        std::cout << "Design Matrix:" << std::endl;
+        std::cout << designMatrix << std::endl;
+        std::cout << "Design Vector:" << std::endl;
+        std::cout << designVector << std::endl;
+        std::cout << "Solution Vector:" << std::endl;
+        std::cout << solution << std::endl;
+    }
 
     Matrix4f output;
     float alpha = -solution(0);

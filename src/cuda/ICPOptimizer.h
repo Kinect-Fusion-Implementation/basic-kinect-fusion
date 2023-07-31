@@ -28,7 +28,7 @@ public:
      * We expect the vertecies of both pointclouds to have 3d coordinates with respect to the camera frame and not the global frame
      * source -> PointCloud of k-th frame, target -> PointCloud of k-1-th frame
      */
-    Matrix4f optimize(PointCloudPyramid &sourcePyramid, Vector3f *vertexMap, Vector3f *normalMap, const Matrix4f &prevFrameToGlobal);
+    Matrix4f optimize(PointCloudPyramid &sourcePyramid, Vector3f *vertexMap, Vector3f *normalMap, const Matrix4f &prevFrameToGlobal, unsigned int frameIdx);
 
 private:
     // ---- Correspondance Search ----
@@ -38,8 +38,8 @@ private:
      *
      */
     Matrix4f pointToPointAndPlaneICP(Vector3f *currentFramePoints, Vector3f *currentFrameNormals, Vector3f *vertexMap, Vector3f *normalMap,
-                                     const Matrix4f &currentFrameToPrevFrameTransformation, const Matrix4f &prevFrameToGlobalTransform,
-                                     unsigned int level, unsigned int iteration);
+                                     const Matrix4f &currentFrameToPrevFrameTransformation, const Matrix4f &prevFrameToGlobalTransformation, Matrix4f currentFrameToGlobalTransformation,
+                                     unsigned int level, unsigned int iteration, unsigned int frameIdx);
 };
 
 void buildPointToPlaneErrorSystem(unsigned int idx, Vector3f &currentVertex,
