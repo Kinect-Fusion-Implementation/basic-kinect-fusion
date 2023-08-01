@@ -96,8 +96,8 @@ int run_kinect_fusion(float vertexDiffThreshold, float normalDiffThreshold, std:
                 auto raycastEnd = std::chrono::high_resolution_clock::now();
                 measurementsRayCast.push_back(raycastEnd - raycastStart);
 #endif
-                ImageUtil::saveNormalMapToImage((float *)raycast.m_normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("RaycastedImage_") + std::to_string(idx), "");
 #if SAVE_IMAGE_MODE
+                ImageUtil::saveNormalMapToImage((float *)raycast.m_normalMap, sensor.getDepthImageWidth(), sensor.getDepthImageHeight(), std::string("RaycastedImage_") + std::to_string(idx), "");
 #endif
                 // Estimate the pose of the current frame
                 Matrix4f estPose;
